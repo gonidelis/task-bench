@@ -36,3 +36,6 @@ cached_legion.h
 # dask
 *.lock
 worker-*
+
+# HPX
+HPX/build
