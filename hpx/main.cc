@@ -9,18 +9,15 @@
 
 #include <tuple>
 
-#include <hpx/config.hpp>
-#if !defined(HPX_COMPUTE_DEVICE_CODE)
 #include "hpx/hpx.hpp"
 #include "hpx/hpx_init.hpp"
 #include "hpx/local/chrono.hpp"
 #include "hpx/modules/collectives.hpp"
 
-#include <iostream>
 
 namespace detail{
   std::tuple<long, long, long> tile(std::uint32_t loc_idx, long column, std::uint32_t numlocs)
-  {
+  {      
     long first_point;
     long n_points = column / numlocs;
     long rest = column % numlocs;
@@ -39,7 +36,7 @@ namespace detail{
 } // namespace detail
 
 int hpx_main(int argc, char *argv[]) 
-{ 
+{    
   // get number of localities and this locality
   std::uint32_t num_localities = hpx::get_num_localities(hpx::launch::sync);
   std::uint32_t this_locality = hpx::get_locality_id();
@@ -50,6 +47,7 @@ int hpx_main(int argc, char *argv[])
   std::vector<std::vector<char> > scratch;
 
   for (auto graph : app.graphs) {
+     
     // hpx way
     //long first_point, last_point, n_points;
     //std::tie(first_point, last_point, n_points) = 
@@ -184,7 +182,7 @@ int hpx_main(int argc, char *argv[])
           auto &point_deps = deps[point_index];
           auto &point_rev_deps = rev_deps[point_index];
 
-          /* Receive */
+          //Receive 
           point_n_inputs = 0;
           if (point >= offset && point < offset + width) {
             for (auto interval : point_deps) {
@@ -206,14 +204,13 @@ int hpx_main(int argc, char *argv[])
 
                   point_n_inputs_future_vec.push_back(point_n_inputs);
                   point_inputs_future_vec.push_back(point_index);
-                  std::cout << "=====rec_loc_index: " << rec_loc_index << '\n';
                 }
                 point_n_inputs++;
               }
             }
           }
 
-          /* Send */
+          // Send
           if (point >= last_offset && point < last_offset + last_width) {
             for (auto interval : point_rev_deps) {
               for (long dep = interval.first; dep <= interval.second; dep++) {
@@ -265,36 +262,17 @@ int hpx_main(int argc, char *argv[])
   return hpx::finalize();;
 }
 
-int main(int argc, char *argv[]) 
+int main(int argc, char* argv[])
 {
-    
-    using namespace hpx::program_options;
-
-    options_description desc_commandline;
-    desc_commandline.add_options()
-        ("steps", value<long>()->default_value(4),
-          "number of time steps (default: 4)")
-        ("width", value<long>()->default_value(4),
-         "maximum number of points at a time step (default: 4)")
-        ("type", value<std::string>(),
-          "pattern type")
-        ("kernel", value<std::string>(),
-         "kernel type")
-         ("iter", value<long>(),
-         "iterations")
-         ("scratch", value<long>(),
-         "scratch (only used for memory_bound kernel)")
-    ;
- 
     // Initialize and run HPX, this example requires to run hpx_main on all
     // localities
-    std::vector<std::string> const cfg = {"hpx.run_hpx_main!=1"};  
-
+    std::vector<std::string> const cfg = {
+        "hpx.run_hpx_main!=1",
+        "--hpx:ini=hpx.commandline.allow_unknown!=1",
+        "--hpx:init=hpx.commandline.aliasing!=0"
+    };
     hpx::init_params init_args;
-    init_args.desc_cmdline = desc_commandline;
     init_args.cfg = cfg;  
-  
+    
     return hpx::init(argc, argv, init_args);
-     
 }
-#endif
