@@ -16,88 +16,30 @@
 #include "hpx/local/chrono.hpp"
 #include "hpx/modules/collectives.hpp"
 
+///////////////////////////////////////////////////////////////////////////////
 constexpr char const* channel_communicator_basename =
-  "hpx_block_channel_communicator";
+  "lalalal";
 
-
-namespace detail{
-
-  std::tuple<long, long, long> tile(std::uint32_t loc_idx, long column, std::uint32_t numlocs)
-  {      
-    long first_point;
-    long n_points = column / numlocs;
-    long rest = column % numlocs;
-    if (loc_idx < rest){
-      n_points ++;
-    }
-
-    if (rest != 0 && loc_idx >= rest){
-      first_point = (n_points + 1) * rest + n_points * (loc_idx - rest);
-    } else {
-      first_point = n_points * loc_idx;
-    }
-    long last_point = first_point + n_points - 1;
-    return std::make_tuple(first_point, last_point, n_points);
-  }
-
-  void assign_tasks(long first_point, long last_point, long n_inputs, 
+///////////////////////////////////////////////////////////////////////////////
+std::tuple<std::vector<long>, std::vector<std::vector<std::vector<char>>> >  each_time_get_set_comm(
+      hpx::collectives::channel_communicator comm,
+      long first_point, long last_point, std::vector<long> n_inputs, 
       std::vector<std::vector<std::vector<char> > > inputs, 
-      std::vector<std::vector<char> > &outputs, long dset,
+      std::vector<std::vector<char> > outputs, long dset,
       std::vector<std::vector<std::vector<std::pair<long, long> > > > dependencies,
-      std::vector<std::vector<std::vector<std::pair<long, long> > > > reverse_dependencies)
-  {
-    std::uint32_t num_localities = hpx::get_num_localities(hpx::launch::sync);
-
-    // for each site, create new channel_communicator
-    std::vector<hpx::collectives::channel_communicator> comms;
-    // need to know number of tasks first?
-    comms.reserve(num_localities);
-
-    // not general 
-    for (std::size_t i = 0; i != num_localities; ++i)
-    {
-        comms.push_back(hpx::collectives::create_channel_communicator(hpx::launch::sync,
-            channel_communicator_basename,
-            num_sites_arg(num_localities),
-            this_site_arg(i)));
-    }
-
-    std::vector<hpx::future<void>> tasks;
-    tasks.reserve(num_localities);
-
-    for (std::size_t i = 0; i != num_localities; ++i)
-    {
-        std::cout << "task: " << i << '\n';
-        tasks.push_back(hpx::async(
-            each_time_get_set_comm, comms[i], 
-            long first_point, long last_point, long n_inputs, 
-            std::vector<std::vector<std::vector<char> > > inputs, 
-            std::vector<std::vector<char> > &outputs, long dset,
-            std::vector<std::vector<std::vector<std::pair<long, long> > > > dependencies,
-            std::vector<std::vector<std::vector<std::pair<long, long> > > > reverse_dependencies));
-    }
-    hpx::wait_all(tasks);
-
-  }
-
-  void each_time_get_set_comm(hpx::collectives::channel_communicator comm,
-      long first_point, long last_point, long n_inputs, 
-      std::vector<std::vector<std::vector<char> > > inputs, 
-      std::vector<std::vector<char> > &outputs, long dset,
-      std::vector<std::vector<std::vector<std::pair<long, long> > > > dependencies,
-      std::vector<std::vector<std::vector<std::pair<long, long> > > > reverse_dependencies)
-  {
-    long offset = graph.offset_at_timestep(timestep);
-    long width = graph.width_at_timestep(timestep);
-
-    long last_offset = graph.offset_at_timestep(timestep-1);
-    long last_width = graph.width_at_timestep(timestep-1);
-    
+      std::vector<std::vector<std::vector<std::pair<long, long> > > > reverse_dependencies,
+      long offset, long width, long last_offset, long last_width,
+      std::vector<int> locality_by_point)
+  {    
     auto &deps = dependencies[dset];
     auto &rev_deps = reverse_dependencies[dset];
 
     std::vector<std::size_t> point_n_inputs_future_vec;
     std::vector<std::size_t> point_inputs_future_vec;
+
+    using data_type = std::vector<char>;
+    std::vector<hpx::future<data_type>> gets;
+    std::vector<hpx::future<void>> sets;
 
     for (long point = first_point; point <= last_point; ++point) {
 
@@ -109,11 +51,6 @@ namespace detail{
 
       auto &point_deps = deps[point_index];
       auto &point_rev_deps = rev_deps[point_index];
-
-      using data_type = std::vector<char>;
-
-      std::vector<hpx::future<data_type>> gets;
-      std::vector<hpx::future<void>> sets;
 
       //Receive 
       point_n_inputs = 0;
@@ -158,26 +95,90 @@ namespace detail{
     }
 
     hpx::wait_all(sets, gets);
+
+
     for (std::size_t i = 0; i != gets.size(); ++i) {
-      auto point_n_inputs = point_n_inputs_future_vec[i];
-      auto point_idx = point_inputs_future_vec[i];
-      auto rec_point_inputs = inputs[point_idx];
-      rec_point_inputs[point_n_inputs]= gets[i].get();
+      auto point_index = point_inputs_future_vec[i];
+
+      auto &point_inputs = inputs[point_index];
+      auto &point_n_inputs = n_inputs[point_index];
+
+      point_n_inputs = point_n_inputs_future_vec[i];
+      point_inputs[point_n_inputs] = gets[i].get();
+
     }
+
+    return std::make_tuple(n_inputs, inputs);
+
+  }
+///////////////////////////////////////////////////////////////////////////////
+
+  std::tuple<std::vector<long>, std::vector<std::vector<std::vector<char>>> > assign_tasks(
+      long first_point, long last_point, std::vector<long> &n_inputs, 
+      std::vector<std::vector<std::vector<char> > > &inputs, 
+      std::vector<std::vector<char> > outputs, long dset,
+      std::vector<std::vector<std::vector<std::pair<long, long> > > > dependencies,
+      std::vector<std::vector<std::vector<std::pair<long, long> > > > reverse_dependencies,
+      long offset, long width, long last_offset, long last_width,
+      std::vector<int> locality_by_point)
+  {
+    std::uint32_t num_localities = hpx::get_num_localities(hpx::launch::sync);
+
+    // for each site, create new channel_communicator
+    std::vector<hpx::collectives::channel_communicator> comms;
+    // need to know number of tasks first? # use deps and max_deps
+    comms.reserve(num_localities);
+
+    // not general 
+    for (std::size_t i = 0; i != num_localities; ++i)
+    {
+        comms.push_back(hpx::collectives::create_channel_communicator(hpx::launch::sync,
+            channel_communicator_basename,
+            hpx::collectives::num_sites_arg(num_localities),
+            hpx::collectives::this_site_arg(i)));
+    }
+
+    //using data_type = std::vector<std::vector<std::vector<char> > >;
+    using data_type = std::tuple<std::vector<long>, std::vector<std::vector<std::vector<char>>> >;
+
+    std::vector<hpx::future<data_type>> tasks;
+    tasks.reserve(num_localities);
+
+    for (std::size_t i = 0; i != num_localities; ++i)
+    {
+        std::cout << "task: " << i << '\n';
+        tasks.push_back(hpx::async(
+          each_time_get_set_comm, comms[i], 
+          first_point, last_point, n_inputs, inputs, outputs, dset,
+          dependencies, reverse_dependencies, offset, width, last_offset, 
+          last_width, locality_by_point));
+    }
+    hpx::wait_all(tasks);
+
+    for (std::size_t i = 0; i != num_localities; ++i)
+    {
+        if (hpx::get_locality_id() == i) {
+          auto data = tasks[i].get();
+          n_inputs = std::get<0>(data);
+          inputs = std::get<1>(data);
+        }
+        
+    }
+
+    return std::make_tuple(n_inputs, inputs);
 
   }
 
-  void execute_point(long timestep, long first_point, long last_point, long n_inputs, 
-      std::vector<std::vector<std::vector<char> > > inputs, 
-      std::vector<std::vector<const char *> > input_ptr,
-      std::vector<std::vector<size_t> > input_bytes,
-      std::vector<std::vector<char> > outputs,
-      size_t scratch_bytes,
-      char *scratch_ptr)
-  {
-    long offset = graph.offset_at_timestep(timestep);
-    long width = graph.width_at_timestep(timestep);
 
+  void execute_point(long timestep, long first_point, long last_point, std::vector<long> &n_inputs, 
+      std::vector<std::vector<std::vector<char> > > &inputs, 
+      std::vector<std::vector<const char *> > &input_ptr,
+      std::vector<std::vector<size_t> > &input_bytes,
+      std::vector<std::vector<char> > &outputs,
+      size_t scratch_bytes,
+      char *scratch_ptr,
+      long offset, long width, TaskGraph graph)
+  {
     for (long point = std::max(first_point, offset); point <= std::min(last_point, offset + width - 1); ++point) {
       long point_index = point - first_point;
 
@@ -193,8 +194,8 @@ namespace detail{
     }   
 
   }
-} // namespace detail
 
+///////////////////////////////////////////////////////////////////////////////
 int hpx_main(int argc, char *argv[]) 
 {    
   // get number of localities and this locality
@@ -293,20 +294,33 @@ int hpx_main(int argc, char *argv[])
       }
   
       for (long timestep = 0; timestep < graph.timesteps; ++timestep) {
+        long offset = graph.offset_at_timestep(timestep);
+        long width = graph.width_at_timestep(timestep);
 
-        assign_tasks(long first_point, long last_point, long n_inputs, 
-            std::vector<std::vector<std::vector<char> > > inputs, 
-            std::vector<std::vector<char> > &outputs, long dset,
-            std::vector<std::vector<std::vector<std::pair<long, long> > > > dependencies,
-            std::vector<std::vector<std::vector<std::pair<long, long> > > > reverse_dependencies);
+        long last_offset = graph.offset_at_timestep(timestep-1);
+        long last_width = graph.width_at_timestep(timestep-1);
+
+        long dset = graph.dependence_set_at_timestep(timestep);
+
+        std::tie(n_inputs, inputs) = assign_tasks(first_point, last_point, n_inputs, inputs, outputs, dset,
+            dependencies, reverse_dependencies, offset, width, last_offset, 
+            last_width, locality_by_point);
         
-        execute_point(long timestep, long first_point, long last_point, long n_inputs, 
-            std::vector<std::vector<std::vector<char> > > inputs, 
-            std::vector<std::vector<const char *> > input_ptr,
-            std::vector<std::vector<size_t> > input_bytes,
-            std::vector<std::vector<char> > outputs,
-            size_t scratch_bytes,
-            char *scratch_ptr);       
+        for (long point = first_point; point <= last_point; ++point) {
+          long point_index = point - first_point;
+
+          auto &point_inputs = inputs[point_index];
+          auto &point_input_ptr = input_ptr[point_index];
+          auto &point_input_bytes = input_bytes[point_index];
+
+          for (long dep = 0; dep < max_deps; ++dep) {
+            point_input_ptr[dep] = point_inputs[dep].data();
+            point_input_bytes[dep] = point_inputs[dep].size();
+          }
+        }
+        
+        execute_point(timestep, first_point, last_point, n_inputs, inputs, input_ptr,
+            input_bytes, outputs, scratch_bytes, scratch_ptr, offset, width, graph);       
       }    
 
 
@@ -324,7 +338,7 @@ int hpx_main(int argc, char *argv[])
 
   return hpx::finalize();;
 }
-
+///////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])
 {
     // Initialize and run HPX, this example requires to run hpx_main on all
