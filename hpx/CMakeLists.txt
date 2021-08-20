@@ -24,8 +24,8 @@ link_directories(${CMAKE_SOURCE_DIR}/../core)
 #add_executable(main main.cc)
 #target_link_libraries(main PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-#add_executable(channel_comm channel_comm.cc)
-#target_link_libraries(channel_comm PUBLIC HPX::hpx HPX::wrap_main)
+add_executable(channel_comm channel_comm.cc)
+target_link_libraries(channel_comm PUBLIC HPX::hpx HPX::wrap_main)
 
 add_executable(channel_test channel_test.cc)
 target_link_libraries(channel_test PUBLIC HPX::hpx HPX::wrap_main)
