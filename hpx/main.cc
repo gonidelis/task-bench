@@ -7,18 +7,21 @@
 
 #include "../core/core.h"
 
+#include <cstdlib>
+#include <string> 
 #include <tuple>
 
 #include <hpx/config.hpp>
 #if !defined(HPX_COMPUTE_DEVICE_CODE)
 #include "hpx/hpx.hpp"
 #include "hpx/hpx_init.hpp"
+#include "hpx/include/actions.hpp"
 #include "hpx/local/chrono.hpp"
 #include "hpx/modules/collectives.hpp"
 
 ///////////////////////////////////////////////////////////////////////////////
 constexpr char const* channel_communicator_basename =
-  "lalalal";
+  "hpx_block_task";
 
 ///////////////////////////////////////////////////////////////////////////////
 std::tuple<std::vector<long>, std::vector<std::vector<std::vector<char>>> >  each_time_get_set_comm(
@@ -111,6 +114,10 @@ std::tuple<std::vector<long>, std::vector<std::vector<std::vector<char>>> >  eac
     return std::make_tuple(n_inputs, inputs);
 
   }
+///////////////////////////////////////////////////////////////////////////////
+
+HPX_PLAIN_ACTION(each_time_get_set_comm, each_time_get_set_comm_action);
+
 ///////////////////////////////////////////////////////////////////////////////
 
   std::tuple<std::vector<long>, std::vector<std::vector<std::vector<char>>> > assign_tasks(
