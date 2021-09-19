@@ -6,15 +6,11 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
 
+#include <hpx/algorithm.hpp>
 #include <hpx/hpx.hpp>
 #include <hpx/hpx_init.hpp>
-#include <hpx/include/actions.hpp>
-#include <hpx/actions_base/plain_action.hpp>
-#include <hpx/include/components.hpp>
-#include <hpx/include/lcos.hpp>
+#include <hpx/iostream.hpp>
 #include <hpx/modules/collectives.hpp>
-#include <hpx/modules/testing.hpp>
-#include <hpx/serialization.hpp>
 
 #include <cstddef>
 #include <utility>
@@ -26,6 +22,8 @@ using namespace hpx::collectives;
 constexpr char const* channel_communicator_name =
 "lalalalala_hpx_hpx";
 
+// the number of times
+constexpr int times = 2;
 ////////////////////////////////////////////////////////////////////////
 
 int hpx_main()
@@ -34,8 +32,6 @@ int hpx_main()
     std::uint32_t this_locality = hpx::get_locality_id();
 
     // allocate channel communicator
-    std::cout << "this_locality: " << this_locality 
-              << ", allocate channel communicator \n";
     auto comm = create_channel_communicator(hpx::launch::sync,
         channel_communicator_name, num_sites_arg(num_localities),
         this_site_arg(this_locality));
@@ -44,21 +40,34 @@ int hpx_main()
 
     std::vector<int> msg_vec = {0, 1};
 
+    int cnt = 0;
+
     int msg = msg_vec[this_locality];
-    std::cout << "this_locality: " << this_locality 
-              << ", now, msg is: " << msg << '\n';
       
     // send values to another locality
     set(comm, that_site_arg(next_locality), msg).get();
 
     auto got_msg = get<int>(comm, that_site_arg(next_locality));
 
-    int rec_msg = got_msg.get();
+    while(cnt < times)
+    {
+        auto done_msg = got_msg.then([&](auto && f) {
+            int rec_msg = f.get();
+            std::cout <<"Time: " << cnt 
+                      << ", Locality " << this_locality << " received msg: " 
+                      << rec_msg << "\n";
+            // change msg by adding 10
+            rec_msg += 10;
 
-    std::cout << "Testing: this loc is: " << this_locality << " " 
-              << ", having msg: " << msg << ", another loc is: " 
-              << next_locality << ", received msg: "
-              << rec_msg << '\n';
+            // start next round
+            set(comm, that_site_arg(next_locality), rec_msg).get();
+            got_msg = get<int>(comm, that_site_arg(next_locality));
+
+        });
+
+        done_msg.get();
+        cnt += 1;
+    }
 
     return hpx::finalize();
 }
