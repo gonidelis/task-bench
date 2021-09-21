@@ -33,5 +33,8 @@ link_directories(${CMAKE_SOURCE_DIR}/../core)
 #add_executable(test_comm_vec_int test_comm_vec_int.cc)
 #target_link_libraries(test_comm_vec_int PUBLIC HPX::hpx HPX::wrap_main)
 
-add_executable(test_comm_vec_char test_comm_vec_char.cc)
-target_link_libraries(test_comm_vec_char PUBLIC HPX::hpx HPX::wrap_main)
+#add_executable(test_comm_vec_char test_comm_vec_char.cc)
+#target_link_libraries(test_comm_vec_char PUBLIC HPX::hpx HPX::wrap_main)
+
+add_executable(main_2 main_2.cc)
+target_link_libraries(main_2 PUBLIC HPX::hpx HPX::wrap_main core_s)
