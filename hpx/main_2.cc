@@ -191,17 +191,31 @@ int hpx_main(int argc, char *argv[])
                   auto &output = outputs[dep - first_point];
                   point_inputs[point_n_inputs].assign(output.begin(), output.end());
                 } else {
-                  gets.push_back(hpx::collectives::get<data_type>(comm, 
-                      hpx::collectives::that_site_arg(locality_by_point[dep])));
-                  point_n_inputs_future_vec.push_back(point_n_inputs);
-                  point_inputs_future_vec.push_back(point_index);
+                  //gets.push_back(hpx::collectives::get<data_type>(comm, 
+                  //    hpx::collectives::that_site_arg(locality_by_point[dep])));
+                  //point_n_inputs_future_vec.push_back(point_n_inputs);
+                  //point_inputs_future_vec.push_back(point_index);
+                  auto got_msg = hpx::collectives::get<data_type>(comm, 
+                      hpx::collectives::that_site_arg(locality_by_point[dep]));
+                
+                  auto done_msg = got_msg.then([&](auto && f) {
+                      point_inputs[point_n_inputs] = f.get();
+                  });
+
+                  done_msg.get();
+
                 }
                 point_n_inputs++;
               }
             }
           }
+          std::cout << "after receiving in hpx code, timestep: " << timestep
+                    << ", point: " << point
+                    << "point_n_inputs: " << point_n_inputs << "\n";
         }
 
+        
+/***
         for (std::size_t i = 0; i != gets.size(); ++i) {
             auto done_msg = gets[i].then([&](auto &&f){
                 auto point_index = point_inputs_future_vec[i];
@@ -210,20 +224,20 @@ int hpx_main(int argc, char *argv[])
                 auto &point_n_inputs = n_inputs[point_index];
 
                 point_n_inputs = point_n_inputs_future_vec[i];
-                point_inputs[point_n_inputs] = gets[i].get();
+                point_inputs[point_n_inputs] = f.get();
             });
             done_msg.get();
         }
-        
-
+        // done_msg.get();
+***/
         for (long point = std::max(first_point, offset); point <= std::min(last_point, offset + width - 1); ++point) {
           long point_index = point - first_point;
+          
 
           auto &point_input_ptr = input_ptr[point_index];
           auto &point_input_bytes = input_bytes[point_index];
           auto &point_n_inputs = n_inputs[point_index];
           auto &point_output = outputs[point_index];
-
           graph.execute_point(timestep, point,
                               point_output.data(), point_output.size(),
                               point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
@@ -254,7 +268,7 @@ int main(int argc, char* argv[])
     std::vector<std::string> const cfg = {
         "hpx.run_hpx_main!=1",
         "--hpx:ini=hpx.commandline.allow_unknown!=1",
-        "--hpx:init=hpx.commandline.aliasing!=0"
+        "--hpx:ini=hpx.commandline.aliasing!=0"
     };
     hpx::init_params init_args;
     init_args.cfg = cfg;  
