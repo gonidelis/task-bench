@@ -44,6 +44,14 @@ int hpx_main(int argc, char *argv[])
   }
   
   double elapsed = 0.0;
+
+  // allocate channel communicator
+  auto comm = hpx::collectives::create_channel_communicator(hpx::launch::sync,
+      channel_communicator_name, hpx::collectives::num_sites_arg(num_localities),
+      hpx::collectives::this_site_arg(this_locality));
+      
+  using data_type = std::vector<char>;
+
   for (int iter = 0; iter < 1; ++iter) {
     
     hpx::chrono::high_resolution_timer timer;
@@ -119,17 +127,6 @@ int hpx_main(int argc, char *argv[])
         }
       }
 
-      // allocate channel communicator
-      auto comm = hpx::collectives::create_channel_communicator(hpx::launch::sync,
-          channel_communicator_name, hpx::collectives::num_sites_arg(num_localities),
-          hpx::collectives::this_site_arg(this_locality));
-      
-      using data_type = std::vector<char>;
-      std::vector<hpx::future<data_type>> gets;
-      std::vector<hpx::future<void>> sets;
-      std::vector<std::size_t> point_n_inputs_future_vec;
-      std::vector<std::size_t> point_inputs_future_vec;
-  
       for (long timestep = 0; timestep < graph.timesteps; ++timestep) {
         long offset = graph.offset_at_timestep(timestep);
         long width = graph.width_at_timestep(timestep);
@@ -141,41 +138,17 @@ int hpx_main(int argc, char *argv[])
         auto &deps = dependencies[dset];
         auto &rev_deps = reverse_dependencies[dset];
 
-        gets.clear();
-        sets.clear();
-        point_n_inputs_future_vec.clear();
-        point_inputs_future_vec.clear();
-
-        for (long point = first_point; point <= last_point; ++point) {
-          long point_index = point - first_point;
-
-          auto &point_output = outputs[point_index];
-          auto &point_rev_deps = rev_deps[point_index];
-
-          /* Send */
-          if (point >= last_offset && point < last_offset + last_width) {
-            for (auto interval : point_rev_deps) {
-              for (long dep = interval.first; dep <= interval.second; dep++) {
-                if (dep < offset || dep >= offset + width || (first_point <= dep && dep <= last_point)) {
-                  continue;
-                }
-                sets.push_back(hpx::collectives::set(comm, 
-                    hpx::collectives::that_site_arg(locality_by_point[dep]), point_output));
-              }
-            }
-          }
-        }
-
-        for (std::size_t i = 0; i != sets.size(); ++i) {
-            sets[i].get();
-        }
-
+        std::cout << "this_locality: " << this_locality << " at time: " << timestep
+                  << " begin the receive and send for loop \n";
         for (long point = first_point; point <= last_point; ++point) {
           long point_index = point - first_point;
 
           auto &point_inputs = inputs[point_index];
           auto &point_n_inputs = n_inputs[point_index];
+          auto &point_output = outputs[point_index];
+
           auto &point_deps = deps[point_index];
+          auto &point_rev_deps = rev_deps[point_index];
 
           /* Receive */
           point_n_inputs = 0;
@@ -191,10 +164,11 @@ int hpx_main(int argc, char *argv[])
                   auto &output = outputs[dep - first_point];
                   point_inputs[point_n_inputs].assign(output.begin(), output.end());
                 } else {
-                  //gets.push_back(hpx::collectives::get<data_type>(comm, 
-                  //    hpx::collectives::that_site_arg(locality_by_point[dep])));
-                  //point_n_inputs_future_vec.push_back(point_n_inputs);
-                  //point_inputs_future_vec.push_back(point_index);
+                  std::cout << "this_locality: " << this_locality << " at time: " << timestep
+                            << " begin the receive \n";
+                  hpx::collectives::set(comm, 
+                    hpx::collectives::that_site_arg(locality_by_point[dep]), point_output).get();
+
                   auto got_msg = hpx::collectives::get<data_type>(comm, 
                       hpx::collectives::that_site_arg(locality_by_point[dep]));
                 
@@ -203,33 +177,44 @@ int hpx_main(int argc, char *argv[])
                   });
 
                   done_msg.get();
-
+                  std::cout << "this_locality: " << this_locality << " at time: " << timestep
+                            << " done the receive \n";
                 }
                 point_n_inputs++;
               }
             }
           }
-          std::cout << "after receiving in hpx code, timestep: " << timestep
-                    << ", point: " << point
-                    << "point_n_inputs: " << point_n_inputs << "\n";
+
+          /* Send */
+          if (point >= last_offset && point < last_offset + last_width) {
+            for (auto interval : point_rev_deps) {
+              for (long dep = interval.first; dep <= interval.second; dep++) {
+                if (dep < offset || dep >= offset + width || (first_point <= dep && dep <= last_point)) {
+                  continue;
+                }
+                std::cout << "this_locality: " << this_locality << " at time: " << timestep
+                            << " begin the receive \n";
+                hpx::collectives::set(comm, 
+                    hpx::collectives::that_site_arg(locality_by_point[dep]), point_output).get();
+                
+                auto got_msg = hpx::collectives::get<data_type>(comm, 
+                      hpx::collectives::that_site_arg(locality_by_point[dep]));
+                
+                auto done_msg = got_msg.then([&](auto && f) {
+                      point_inputs[point_n_inputs] = f.get();
+                  });
+
+                done_msg.get();
+                std::cout << "this_locality: " << this_locality << " at time: " << timestep
+                            << " done the receive \n";
+              }
+            }
+          }
         }
 
-        
-/***
-        for (std::size_t i = 0; i != gets.size(); ++i) {
-            auto done_msg = gets[i].then([&](auto &&f){
-                auto point_index = point_inputs_future_vec[i];
+        std::cout << "this_locality: " << this_locality << " at time: " << timestep
+                  << " done the receive and send for loop \n";
 
-                auto &point_inputs = inputs[point_index];
-                auto &point_n_inputs = n_inputs[point_index];
-
-                point_n_inputs = point_n_inputs_future_vec[i];
-                point_inputs[point_n_inputs] = f.get();
-            });
-            done_msg.get();
-        }
-        // done_msg.get();
-***/
         for (long point = std::max(first_point, offset); point <= std::min(last_point, offset + width - 1); ++point) {
           long point_index = point - first_point;
           
@@ -243,13 +228,15 @@ int hpx_main(int argc, char *argv[])
                               point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
                               scratch_ptr + scratch_bytes * point_index, scratch_bytes);
         }
-      }    
-
-
+        std::cout << "this_locality: " << this_locality << " at time: " << timestep
+                    << " done the last for-loop to execute in the step-time loop \n";
+      }
+      std::cout << "this_locality: " << this_locality 
+                    << " done the last one before time elapsed (not yet) \n";
     }
   
     elapsed = timer.elapsed(); 
-    std::cout << "-----------------------------" << std::endl;
+    std::cout << "this_locality: " << this_locality << " done main hpx code (not yet) **************" << std::endl;
   }
 
 
