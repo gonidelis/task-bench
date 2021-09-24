@@ -165,9 +165,7 @@ int hpx_main(int argc, char *argv[])
                   point_inputs[point_n_inputs].assign(output.begin(), output.end());
                 } else {
                   std::cout << "this_locality: " << this_locality << " at time: " << timestep
-                            << " begin the receive \n";
-                  hpx::collectives::set(comm, 
-                    hpx::collectives::that_site_arg(locality_by_point[dep]), point_output).get();
+                            << " begin the receive from deps \n";
 
                   auto got_msg = hpx::collectives::get<data_type>(comm, 
                       hpx::collectives::that_site_arg(locality_by_point[dep]));
@@ -178,7 +176,7 @@ int hpx_main(int argc, char *argv[])
 
                   done_msg.get();
                   std::cout << "this_locality: " << this_locality << " at time: " << timestep
-                            << " done the receive \n";
+                            << " done the receive from deps \n";
                 }
                 point_n_inputs++;
               }
@@ -193,20 +191,12 @@ int hpx_main(int argc, char *argv[])
                   continue;
                 }
                 std::cout << "this_locality: " << this_locality << " at time: " << timestep
-                            << " begin the receive \n";
+                            << " begin the send to rev_deps \n";
                 hpx::collectives::set(comm, 
                     hpx::collectives::that_site_arg(locality_by_point[dep]), point_output).get();
                 
-                auto got_msg = hpx::collectives::get<data_type>(comm, 
-                      hpx::collectives::that_site_arg(locality_by_point[dep]));
-                
-                auto done_msg = got_msg.then([&](auto && f) {
-                      point_inputs[point_n_inputs] = f.get();
-                  });
-
-                done_msg.get();
                 std::cout << "this_locality: " << this_locality << " at time: " << timestep
-                            << " done the receive \n";
+                            << " done the send to rev_deps \n";
               }
             }
           }
