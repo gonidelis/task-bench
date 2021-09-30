@@ -126,18 +126,26 @@ int hpx_main(int argc, char *argv[])
           reverse_dependencies[dset][point_index] = graph.reverse_dependencies(dset, point);
         }
       }
-
-      for (long timestep = 0; timestep < graph.timesteps; ++timestep) {
+      
+      long timestep = 0;
+      while (timestep < graph.timesteps - 1) {
         long offset = graph.offset_at_timestep(timestep);
         long width = graph.width_at_timestep(timestep);
 
         long last_offset = graph.offset_at_timestep(timestep-1);
         long last_width = graph.width_at_timestep(timestep-1);
 
+        long next_offset = graph.offset_at_timestep(timestep+1);
+        long next_width = graph.width_at_timestep(timestep+1);
+
         long dset = graph.dependence_set_at_timestep(timestep);
         auto &deps = dependencies[dset];
         auto &rev_deps = reverse_dependencies[dset];
-
+   
+        long dset_next_time = graph.dependence_set_at_timestep(timestep+1);
+        auto &rev_deps_next_time = reverse_dependencies[dset_next_time];
+        
+        
         for (long point = first_point; point <= last_point; ++point) {
           long point_index = point - first_point;
 
@@ -148,34 +156,46 @@ int hpx_main(int argc, char *argv[])
           auto &point_deps = deps[point_index];
           auto &point_rev_deps = rev_deps[point_index];
 
+          auto &point_rev_deps_next_time = rev_deps_next_time[point_index];
+          
           if (timestep == 0) {
               // execute 
               if (point >= offset && point < offset + width) {
+                std::cout << "timestep: " << timestep 
+                    << ", this this_locality: " << this_locality
+                    << ", point: " << point
+                    << ", is execute_point \n";
                 auto &point_input_ptr = input_ptr[point_index];
                 auto &point_input_bytes = input_bytes[point_index];
                 graph.execute_point(timestep, point,
                                     point_output.data(), point_output.size(),
                                     point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
                                     scratch_ptr + scratch_bytes * point_index, scratch_bytes);
-              }
-          } else {
-              // send output
-              if (point >= last_offset && point < last_offset + last_width) {
-                for (auto interval : point_rev_deps) {
-                  for (long dep = interval.first; dep <= interval.second; dep++) {
-                    if (dep < offset || dep >= offset + width || (first_point <= dep && dep <= last_point)) {
-                      continue;
+                std::cout << "timestep: " << timestep 
+                    << ", this this_locality: " << this_locality
+                    << ", point: " << point
+                    << ", done execute_point \n";
+                // send output using /next
+                if (point >= offset && point < offset + width) {
+                  for (auto interval : point_rev_deps_next_time) {
+                    for (long dep = interval.first; dep <= interval.second; dep++) {
+                      if (dep < next_offset || dep >= next_offset + next_width || (first_point <= dep && dep <= last_point)) {
+                        continue;
+                      }
+                      hpx::collectives::set(comm, 
+                          hpx::collectives::that_site_arg(locality_by_point[dep]), point_output).get();
+                      std::cout << "timestep: " << timestep 
+                            << ", this this_locality: " << this_locality
+                            << ", point: " << point
+                              << ", is sending to rank: *********************" << locality_by_point[dep]
+                              << "\n";
                     }
-                    std::cout << "this_locality: " << this_locality << " at time: " << timestep
-                                << " begin the send to rev_deps \n";
-                    hpx::collectives::set(comm, 
-                        hpx::collectives::that_site_arg(locality_by_point[dep]), point_output).get();
-                    
-                    std::cout << "this_locality: " << this_locality << " at time: " << timestep
-                                << " done the send to rev_deps \n";
                   }
                 }
+                      
               }
+              timestep = timestep +1;
+          } else {
               // receive input
               point_n_inputs = 0;
               if (point >= offset && point < offset + width) {
@@ -189,18 +209,16 @@ int hpx_main(int argc, char *argv[])
                       auto &output = outputs[dep - first_point];
                       point_inputs[point_n_inputs].assign(output.begin(), output.end());
                     } else {
-                      std::cout << "this_locality: " << this_locality << "point: "
-                                          << point << " at time: " << timestep
-                                << " begin the receive from deps, which is loc: "
-                                << locality_by_point[dep] << " \n";
                       auto got_msg = hpx::collectives::get<data_type>(comm, 
                           hpx::collectives::that_site_arg(locality_by_point[dep]));
                       
                       data_type rec_msg = got_msg.get();
                       point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
-                      std::cout << "this_locality: " << this_locality << " at time: " << timestep
-                                << " done the receive from deps, which is loc: "
-                                << locality_by_point[dep] << " \n";
+                      std::cout << "timestep: " << timestep 
+                          << ", this this_locality: " << this_locality
+                          << ", point: " << point
+                          << ", is receving from rank: *********************" << locality_by_point[dep]
+                          << "\n";
                     }
                     point_n_inputs++;
                   }
@@ -208,17 +226,110 @@ int hpx_main(int argc, char *argv[])
               }
               // execute 
               if (point >= offset && point < offset + width) {
+                std::cout << "timestep: " << timestep 
+                    << ", this this_locality: " << this_locality
+                    << ", point: " << point
+                    << ", is execute_point \n";
                 auto &point_input_ptr = input_ptr[point_index];
                 auto &point_input_bytes = input_bytes[point_index];
                 graph.execute_point(timestep, point,
                                     point_output.data(), point_output.size(),
                                     point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
                                     scratch_ptr + scratch_bytes * point_index, scratch_bytes);
+                std::cout << "timestep: " << timestep 
+                    << ", this this_locality: " << this_locality
+                    << ", point: " << point
+                    << ", done execute_point \n";
               }
-              
-
+              // send output
+              if (point >= offset && point < offset + width) {
+                for (auto interval : point_rev_deps_next_time) {
+                  for (long dep = interval.first; dep <= interval.second; dep++) {
+                    if (dep < next_offset || dep >= next_offset + next_width || (first_point <= dep && dep <= last_point)) {
+                      continue;
+                    }
+                    hpx::collectives::set(comm, 
+                        hpx::collectives::that_site_arg(locality_by_point[dep]), point_output).get();
+                    std::cout << "timestep: " << timestep 
+                          << ", this this_locality: " << this_locality
+                          << ", point: " << point
+                            << ", is sending to rank: *********************" << locality_by_point[dep]
+                            << "\n";
+                  }
+                }
+              }
+              timestep = timestep +1;
           }          
 
+        }     
+
+      }
+      // last time
+      if (timestep == graph.timesteps - 1) {
+        long offset = graph.offset_at_timestep(timestep);
+        long width = graph.width_at_timestep(timestep);
+
+        long last_offset = graph.offset_at_timestep(timestep-1);
+        long last_width = graph.width_at_timestep(timestep-1);
+
+        long dset = graph.dependence_set_at_timestep(timestep);
+        auto &deps = dependencies[dset];
+        auto &rev_deps = reverse_dependencies[dset];
+         
+        for (long point = first_point; point <= last_point; ++point) {
+          long point_index = point - first_point;
+
+          auto &point_inputs = inputs[point_index];
+          auto &point_n_inputs = n_inputs[point_index];
+          auto &point_output = outputs[point_index];
+
+          auto &point_deps = deps[point_index];
+        
+          // receive input
+          point_n_inputs = 0;
+          if (point >= offset && point < offset + width) {
+            for (auto interval : point_deps) {
+              for (long dep = interval.first; dep <= interval.second; ++dep) {
+                if (dep < last_offset || dep >= last_offset + last_width) {
+                  continue;
+                }
+                // Use shared memory for on-node data.
+                if (first_point <= dep && dep <= last_point) {
+                  auto &output = outputs[dep - first_point];
+                  point_inputs[point_n_inputs].assign(output.begin(), output.end());
+                } else {
+                  auto got_msg = hpx::collectives::get<data_type>(comm, 
+                      hpx::collectives::that_site_arg(locality_by_point[dep]));
+                  
+                  data_type rec_msg = got_msg.get();
+                  point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
+                  std::cout << "timestep: " << timestep 
+                      << ", this this_locality: " << this_locality
+                      << ", point: " << point
+                      << ", is receving from rank: *********************" << locality_by_point[dep]
+                      << "\n";
+                }
+                point_n_inputs++;
+              }
+            }
+          }
+          // execute 
+          if (point >= offset && point < offset + width) {
+            std::cout << "timestep: " << timestep 
+                << ", this this_locality: " << this_locality
+                << ", point: " << point
+                << ", is execute_point \n";
+            auto &point_input_ptr = input_ptr[point_index];
+            auto &point_input_bytes = input_bytes[point_index];
+            graph.execute_point(timestep, point,
+                                point_output.data(), point_output.size(),
+                                point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
+                                scratch_ptr + scratch_bytes * point_index, scratch_bytes);
+            std::cout << "timestep: " << timestep 
+                << ", this this_locality: " << this_locality
+                << ", point: " << point
+                << ", done execute_point \n";
+          }                        
         }     
 
       }
