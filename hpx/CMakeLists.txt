@@ -21,8 +21,8 @@ find_package(HPX REQUIRED)
 
 link_directories(${CMAKE_SOURCE_DIR}/../core)
 
-#add_executable(main main.cc)
-#target_link_libraries(main PUBLIC HPX::hpx HPX::wrap_main core_s)
+add_executable(main main.cc)
+target_link_libraries(main PUBLIC HPX::hpx HPX::wrap_main core_s)
 
 #add_executable(test_comm_ring test_comm_ring.cc)
 #target_link_libraries(test_comm_ring PUBLIC HPX::hpx HPX::wrap_main)
@@ -36,5 +36,5 @@ link_directories(${CMAKE_SOURCE_DIR}/../core)
 #add_executable(test_comm_vec_char test_comm_vec_char.cc)
 #target_link_libraries(test_comm_vec_char PUBLIC HPX::hpx HPX::wrap_main)
 
-add_executable(main_2 main_2.cc)
-target_link_libraries(main_2 PUBLIC HPX::hpx HPX::wrap_main core_s)
+#add_executable(test_comm_diff_time_setget test_comm_diff_time_setget.cc)
+#target_link_libraries(test_comm_diff_time_setget PUBLIC HPX::hpx HPX::wrap_main)
