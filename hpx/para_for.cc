@@ -52,6 +52,8 @@ int hpx_main(int argc, char *argv[])
       
   using data_type = std::vector<char>;
 
+  std::vector<hpx::future<void>> sets;
+
   for (int iter = 0; iter < 2; ++iter) {
     
     hpx::chrono::high_resolution_timer timer;
@@ -138,53 +140,58 @@ int hpx_main(int argc, char *argv[])
         auto &deps = dependencies[dset];
         auto &rev_deps = reverse_dependencies[dset];
 
-        for (long point = first_point; point <= last_point; ++point) {
-          long point_index = point - first_point;
+        sets.clear();
 
-          auto &point_inputs = inputs[point_index];
-          auto &point_n_inputs = n_inputs[point_index];
-          auto &point_output = outputs[point_index];
+        // hpx for loop
+        hpx::for_loop(hpx::execution::par, first_point, last_point + 1,
+          [&](long point)
+          {
+          
+              long point_index = point - first_point;
 
-          auto &point_deps = deps[point_index];
-          auto &point_rev_deps = rev_deps[point_index];
+              auto &point_inputs = inputs[point_index];
+              auto &point_n_inputs = n_inputs[point_index];
+              auto &point_output = outputs[point_index];
 
-          // Send 
-          if (point >= last_offset && point < last_offset + last_width) {
-            for (auto interval : point_rev_deps) {
-              for (long dep = interval.first; dep <= interval.second; dep++) {
-                if (dep < offset || dep >= offset + width || (first_point <= dep && dep <= last_point)) {
-                  continue;
+              auto &point_deps = deps[point_index];
+              auto &point_rev_deps = rev_deps[point_index];
+
+              // Send 
+              if (point >= last_offset && point < last_offset + last_width) {
+                for (auto interval : point_rev_deps) {
+                  for (long dep = interval.first; dep <= interval.second; dep++) {
+                    if (dep < offset || dep >= offset + width || (first_point <= dep && dep <= last_point)) {
+                      continue;
+                    }
+                    sets.push_back(hpx::collectives::set(comm, 
+                        hpx::collectives::that_site_arg(locality_by_point[dep]), point_output));
+                  }
                 }
-                hpx::collectives::set(comm, 
-                    hpx::collectives::that_site_arg(locality_by_point[dep]), point_output).get();
-              }
-            }
-          } // Send 
-
-          // Receive 
-          point_n_inputs = 0;
-          if (point >= offset && point < offset + width) {
-            for (auto interval : point_deps) {
-              for (long dep = interval.first; dep <= interval.second; ++dep) {
-                if (dep < last_offset || dep >= last_offset + last_width) {
-                  continue;
+              } // Send 
+              hpx::wait_all(sets);
+              // Receive 
+              point_n_inputs = 0;
+              if (point >= offset && point < offset + width) {
+                for (auto interval : point_deps) {
+                  for (long dep = interval.first; dep <= interval.second; ++dep) {
+                    if (dep < last_offset || dep >= last_offset + last_width) {
+                      continue;
+                    }
+                    // Use shared memory for on-node data.
+                    if (first_point <= dep && dep <= last_point) {
+                      auto &output = outputs[dep - first_point];
+                      point_inputs[point_n_inputs].assign(output.begin(), output.end());
+                    } else {
+                      auto got_msg = hpx::collectives::get<data_type>(comm, 
+                              hpx::collectives::that_site_arg(locality_by_point[dep]));
+                      data_type rec_msg = got_msg.get();
+                      point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
+                    }
+                    point_n_inputs++;
+                  }
                 }
-
-                // Use shared memory for on-node data.
-                if (first_point <= dep && dep <= last_point) {
-                  auto &output = outputs[dep - first_point];
-                  point_inputs[point_n_inputs].assign(output.begin(), output.end());
-                } else {
-                  auto got_msg = hpx::collectives::get<data_type>(comm, 
-                          hpx::collectives::that_site_arg(locality_by_point[dep]));
-                  data_type rec_msg = got_msg.get();
-                  point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
-                }
-                point_n_inputs++;
-              }
-            }
-          } // Receive        
-        }
+              } // Receive
+          }); // hpx for loop
 
         for (long point = std::max(first_point, offset); point <= std::min(last_point, offset + width - 1); ++point) {
           long point_index = point - first_point;
