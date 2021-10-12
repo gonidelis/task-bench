@@ -8,6 +8,7 @@
 #include "../core/core.h"
 
 #include <cstdlib>
+#include <fstream>
 #include <string> 
 #include <tuple>
 
@@ -40,16 +41,7 @@ int hpx_main(int argc, char *argv[])
 
     size_t scratch_bytes = graph.scratch_bytes_per_task;
     scratch.emplace_back(scratch_bytes * n_points);
-    //TaskGraph::prepare_scratch(scratch.back().data(), scratch.back().size());
-
-    char *scratch_ptr = scratch.back().data();
-
-    hpx::for_loop(
-        hpx::execution::par, first_point, last_point + 1, [&](long point) {
-          long point_index = point - first_point;
-          TaskGraph::prepare_scratch(scratch_ptr + scratch_bytes * point_index,
-                                     scratch_bytes);
-        });
+    TaskGraph::prepare_scratch(scratch.back().data(), scratch.back().size());
   }
   
   double elapsed = 0.0;
