@@ -16,6 +16,8 @@
 #include "hpx/hpx.hpp"
 #include <hpx/hpx_main.hpp>
 #include <hpx/parallel/algorithms/for_loop.hpp>
+#include <hpx/async_local/dataflow.hpp>
+
 
 #include <stdarg.h>
 #include <assert.h>
@@ -538,13 +540,13 @@ void OpenMPApp::insert_task(task_args_t *args, int num_args, payload_t payload, 
   int y0 = args[0].y;
 //  printf("x %d, y %d, mat %p\n", x0, y0, mat);
 
+  hpx::future<void> t1, t2;
   switch(num_args) {
   case 1:
   {
     // #pragma omp task depend(inout: mat[y0 * matrix[graph_id].N + x0]) untied mergeable
-    // t1 = hpx::async(&task1, &mat[y0 * matrix[graph_id].N + x0], payload);
-    // t1.get();
-    task1(&mat[y0 * matrix[graph_id].N + x0], payload);
+    t1 = hpx::async(&task1, &mat[y0 * matrix[graph_id].N + x0], payload);
+    // task1(&mat[y0 * matrix[graph_id].N + x0], payload);
     break;
   }
   
@@ -556,11 +558,15 @@ void OpenMPApp::insert_task(task_args_t *args, int num_args, payload_t payload, 
     // t2 = t1.then([&](hpx::future<void> f)
     // {
     //   f.get();
-    task2(&mat[y0 * matrix[graph_id].N + x0], 
-          &mat[y1 * matrix[graph_id].N + x1], payload);
-    // });  
 
-    // t2.get();
+    t2 = t1.then(
+      [&mat, y0, &matrix, graph_id, x0, y1, x1, payload](hpx::future<void> f)
+      {
+        f.get();
+        task2(&mat[y0 * matrix[graph_id].N + x0], 
+            &mat[y1 * matrix[graph_id].N + x1], payload);
+
+      });  
 
     break;
   }
@@ -571,10 +577,15 @@ void OpenMPApp::insert_task(task_args_t *args, int num_args, payload_t payload, 
     int y1 = args[1].y;
     int x2 = args[2].x;
     int y2 = args[2].y;
+    // if(hpx::get_num_worker_threads() > 2)
+    // {
+    // }
     // #pragma omp task depend(in: mat[y1 * matrix[graph_id].N + x1]) depend(in: mat[y2 * matrix[graph_id].N + x2]) depend(inout: mat[y0 * matrix[graph_id].N + x0]) untied mergeable
+    t2.get();
       task3(&mat[y0 * matrix[graph_id].N + x0], 
             &mat[y1 * matrix[graph_id].N + x1], 
             &mat[y2 * matrix[graph_id].N + x2], payload);
+    
     break;
   }
   
