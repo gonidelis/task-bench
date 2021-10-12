@@ -40,7 +40,16 @@ int hpx_main(int argc, char *argv[])
 
     size_t scratch_bytes = graph.scratch_bytes_per_task;
     scratch.emplace_back(scratch_bytes * n_points);
-    TaskGraph::prepare_scratch(scratch.back().data(), scratch.back().size());
+    //TaskGraph::prepare_scratch(scratch.back().data(), scratch.back().size());
+
+    char *scratch_ptr = scratch.back().data();
+
+    hpx::for_loop(
+        hpx::execution::par, first_point, last_point + 1, [&](long point) {
+          long point_index = point - first_point;
+          TaskGraph::prepare_scratch(scratch_ptr + scratch_bytes * point_index,
+                                     scratch_bytes);
+        });
   }
   
   double elapsed = 0.0;
@@ -142,7 +151,6 @@ int hpx_main(int argc, char *argv[])
 
         sets.clear();
 
-        // hpx for loop
         hpx::for_loop(hpx::execution::par, first_point, last_point + 1,
           [&](long point)
           {
@@ -167,8 +175,10 @@ int hpx_main(int argc, char *argv[])
                         hpx::collectives::that_site_arg(locality_by_point[dep]), point_output));
                   }
                 }
-              } // Send 
+              } 
+
               hpx::wait_all(sets);
+              
               // Receive 
               point_n_inputs = 0;
               if (point >= offset && point < offset + width) {
@@ -190,21 +200,23 @@ int hpx_main(int argc, char *argv[])
                     point_n_inputs++;
                   }
                 }
-              } // Receive
-          }); // hpx for loop
+              } 
+          }); 
 
-        for (long point = std::max(first_point, offset); point <= std::min(last_point, offset + width - 1); ++point) {
-          long point_index = point - first_point;
-          
-          auto &point_input_ptr = input_ptr[point_index];
-          auto &point_input_bytes = input_bytes[point_index];
-          auto &point_n_inputs = n_inputs[point_index];
-          auto &point_output = outputs[point_index];
-          graph.execute_point(timestep, point,
-                              point_output.data(), point_output.size(),
-                              point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
-                              scratch_ptr + scratch_bytes * point_index, scratch_bytes);
-        }
+        hpx::for_loop(
+            hpx::execution::par, first_point, last_point + 1, [&](long point) {
+              long point_index = point - first_point;
+
+              auto &point_input_ptr = input_ptr[point_index];
+              auto &point_input_bytes = input_bytes[point_index];
+              auto &point_n_inputs = n_inputs[point_index];
+              auto &point_output = outputs[point_index];
+              graph.execute_point(timestep, point, point_output.data(),
+                                  point_output.size(), point_input_ptr.data(),
+                                  point_input_bytes.data(), point_n_inputs,
+                                  scratch_ptr + scratch_bytes * point_index,
+                                  scratch_bytes);
+            });
       }
     }
     elapsed = timer.elapsed(); 
