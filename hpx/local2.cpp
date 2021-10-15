@@ -15,8 +15,8 @@
 
 #include "hpx/hpx.hpp"
 #include <hpx/hpx_main.hpp>
-#include <hpx/parallel/algorithms/for_loop.hpp>
-#include <hpx/async_local/dataflow.hpp>
+// #include <hpx/parallel/algorithms/for_loop.hpp>
+// #include <hpx/async_local/dataflow.hpp>
 
 
 #include <stdarg.h>
@@ -33,8 +33,8 @@
 
 #define MAX_NUM_ARGS 10
 
-typedef struct tile_s {
-  float dep;
+typedef struct tile_s {   // does this thing represent the dependency or the data?
+  float dep; // might turn that into a future
   char *output_buff;
 }tile_t;
 
@@ -50,19 +50,63 @@ typedef struct task_args_s {
 }task_args_t;
 
 typedef struct matrix_s {
-  tile_t *data;
+  tile_t *data;   // single tile or array of tiles?: It's an array of tiles
+  
   int M;
   int N;
 }matrix_t;
 
 char **extra_local_memory;
 
+// static inline void task(tile_t *tile_out, payload_t payload, int num_args)
+// {
+//   int tid = hpx::get_worker_thread_num();
+
+//   TaskGraph graph = payload.graph;
+//   char *output_ptr = (char*)tile_out->output_buff; // that's the output - dependecy is being created on that thingy
+//   size_t output_bytes= graph.output_bytes_per_task;
+//   std::vector<const char *> input_ptrs;
+//   std::vector<size_t> input_bytes;
+//   input_ptrs.push_back((char*)tile_out->output_buff);
+//   input_bytes.push_back(graph.output_bytes_per_task);
+  
+//   graph.execute_point(payload.y, payload.x, output_ptr, output_bytes,
+//                       input_ptrs.data(), input_bytes.data(), input_ptrs.size(), extra_local_memory[tid], graph.scratch_bytes_per_task);
+// }
+
+static inline void task(tile_t *tile_out, std::vector<tile_t *> tile_ins, payload_t payload, int num_args)
+{
+  int tid = hpx::get_worker_thread_num();
+  TaskGraph graph = payload.graph;
+  char *output_ptr = (char*)tile_out->output_buff;
+  size_t output_bytes= graph.output_bytes_per_task;
+  std::vector<const char *> input_ptrs;
+  std::vector<size_t> input_bytes;
+
+  if(num_args > 1)
+  {
+    for(int i = 1 ; i < num_args ; ++i)
+    {
+      input_ptrs.push_back((char*)tile_ins[i]->output_buff);
+      input_bytes.push_back(graph.output_bytes_per_task);
+    }
+  }
+  else
+  {
+    input_ptrs.push_back((char*)tile_out->output_buff);
+    input_bytes.push_back(graph.output_bytes_per_task);
+  }
+  
+  graph.execute_point(payload.y, payload.x, output_ptr, output_bytes,
+                      input_ptrs.data(), input_bytes.data(), input_ptrs.size(), extra_local_memory[tid], graph.scratch_bytes_per_task);
+}
+
 static inline void task1(tile_t *tile_out, payload_t payload)
 {
   int tid = hpx::get_worker_thread_num();
 #if defined (USE_CORE_VERIFICATION)    
   TaskGraph graph = payload.graph;
-  char *output_ptr = (char*)tile_out->output_buff;
+  char *output_ptr = (char*)tile_out->output_buff; // that's the output - dependecy is being created on that thingy
   size_t output_bytes= graph.output_bytes_per_task;
   std::vector<const char *> input_ptrs;
   std::vector<size_t> input_bytes;
@@ -71,8 +115,8 @@ static inline void task1(tile_t *tile_out, payload_t payload)
   
   graph.execute_point(payload.y, payload.x, output_ptr, output_bytes,
                       input_ptrs.data(), input_bytes.data(), input_ptrs.size(), extra_local_memory[tid], graph.scratch_bytes_per_task);
-#else  
-  tile_out->dep = 0;
+#else
+  tile_out->dep = 1;
   printf("Task1 tid %d, x %d, y %d, out %f\n", tid, payload.x, payload.y, tile_out->dep);
 #endif  
 }
@@ -396,13 +440,10 @@ OpenMPApp::OpenMPApp(int argc, char **argv)
   // omp_set_num_threads(nb_workers);
   if (max_scratch_bytes_per_task > 0) {
     // #pragma omp parallel
-    hpx::future<void> f = hpx::async([max_scratch_bytes_per_task]()
-    {
+
       int tid = hpx::get_worker_thread_num();
       // printf("Im tid %d\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", tid);
       TaskGraph::prepare_scratch(extra_local_memory[tid], sizeof(char)*max_scratch_bytes_per_task);
-    });
-    f.get();
   }
 
 
@@ -438,28 +479,27 @@ void OpenMPApp::execute_main_loop()
   
   Timer::time_start();
   
-  // #pragma omp parallel
-  {
-    // #pragma omp master
-    {
-      for (unsigned i = 0; i < graphs.size(); i++) {
-        const TaskGraph &g = graphs[i];
-        for (int y = 0; y < g.timesteps; y++) {
-          execute_timestep(i, y);
-        }
-        
-      }
-//      #pragma omp taskwait
+  for (unsigned i = 0; i < graphs.size(); i++) {
+    const TaskGraph &g = graphs[i];
+    for (int y = 0; y < g.timesteps; y++) {
+      hpx::define_task_block(
+        hpx::execution::par,
+          [&](hpx::task_block<>& tb) {
+            tb.run([&] {execute_timestep(i, y);
+        });
+      });
     }
-    // #pragma omp barrier
-  }
-  
+  }        
+
   double elapsed = Timer::time_end();
   report_timing(elapsed);
 }
 
+
 void OpenMPApp::execute_timestep(size_t idx, long t)
 {
+  tile_t *mat = matrix[idx].data;
+
   const TaskGraph &g = graphs[idx];
   long offset = g.offset_at_timestep(t);
   long width = g.width_at_timestep(t);
@@ -471,6 +511,8 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
   int num_args = 0;
   int ct = 0;  
   
+  std::vector<hpx::future<void>> futures(width);
+
   for(int x = offset; x <= offset+width-1; x++) 
   // hpx::for_loop(offset, offset+width-1, [&](int x)
   {
@@ -515,38 +557,50 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
     }
     
     assert(num_args == ct);
+
     
+    // hpx::shared_future<int> num_args_f = hpx::make_ready_future(num_args);
+    // hpx::shared_future<task_args_t> args_f = hpx::make_ready_future(&args);
+    // hpx::shared_future<payload_t> payload_f = hpx::make_ready_future(payload);
+    // hpx::shared_future<size_t> idx_f = hpx::make_ready_future(idx);
+
     payload.y = t;
     payload.x = x;
     payload.graph = g;
-    if(hpx::get_os_thread_count() < 8)
+    // insert_task(args, num_args, payload, idx);
+    std::vector<tile_t*> tiles(num_args);
+    tile_t *tile_out = &mat[args[0].y * matrix[idx].N + args[0].x];
+    for(int i = 1 ; i < num_args ; ++i)
     {
-      hpx::future<void> f = hpx::async(
-        [&](){insert_task(args, num_args, payload, idx);});
-      f.get();
+      tiles[i] = &mat[args[i].y * matrix[idx].N + args[i].x];
     }
-    else
-    {
-      insert_task(args, num_args, payload, idx);
-    }
-  }
-  // );
-}
 
+    futures[x] = hpx::async(task, tile_out, tiles, payload, num_args);
+
+    // 1. Task Block Implementation
+    // hpx::define_task_block(
+    //   hpx::execution::par,
+    //   [&](hpx::task_block<>& tb) {
+    //     tb.run([&] {task(tile_out, tiles, payload, num_args);} );
+    // });
+  }
+  hpx::wait_all(futures);
+}
 void OpenMPApp::insert_task(task_args_t *args, int num_args, payload_t payload, size_t graph_id)
 {
   tile_t *mat = matrix[graph_id].data;
+  // tile_t *mat2 = matrix[graph_id].f;
   int x0 = args[0].x;
   int y0 = args[0].y;
-//  printf("x %d, y %d, mat %p\n", x0, y0, mat);
 
-  hpx::future<void> t1, t2;
+  // printf("x %d, y %d, mat %p\n", x0, y0, mat);
+
+  // hpx::future<void> t1, t2, t3;
   switch(num_args) {
   case 1:
   {
     // #pragma omp task depend(inout: mat[y0 * matrix[graph_id].N + x0]) untied mergeable
-    t1 = hpx::async(&task1, &mat[y0 * matrix[graph_id].N + x0], payload);
-    // task1(&mat[y0 * matrix[graph_id].N + x0], payload);
+    task1(&mat[y0 * matrix[graph_id].N + x0], payload);
     break;
   }
   
@@ -554,20 +608,9 @@ void OpenMPApp::insert_task(task_args_t *args, int num_args, payload_t payload, 
   {
     int x1 = args[1].x;
     int y1 = args[1].y;
-    // #pragma omp task depend(in: mat[y1 * matrix[graph_id].N + x1]) depend(inout: mat[y0 * matrix[graph_id].N + x0]) untied mergeable
-    // t2 = t1.then([&](hpx::future<void> f)
-    // {
-    //   f.get();
-
-    t2 = t1.then(
-      [&mat, y0, &matrix, graph_id, x0, y1, x1, payload](hpx::future<void> f)
-      {
-        f.get();
-        task2(&mat[y0 * matrix[graph_id].N + x0], 
+    #pragma omp task depend(in: mat[y1 * matrix[graph_id].N + x1]) depend(inout: mat[y0 * matrix[graph_id].N + x0]) untied mergeable
+      task2(&mat[y0 * matrix[graph_id].N + x0], 
             &mat[y1 * matrix[graph_id].N + x1], payload);
-
-      });  
-
     break;
   }
   
@@ -577,15 +620,11 @@ void OpenMPApp::insert_task(task_args_t *args, int num_args, payload_t payload, 
     int y1 = args[1].y;
     int x2 = args[2].x;
     int y2 = args[2].y;
-    // if(hpx::get_num_worker_threads() > 2)
-    // {
-    // }
     // #pragma omp task depend(in: mat[y1 * matrix[graph_id].N + x1]) depend(in: mat[y2 * matrix[graph_id].N + x2]) depend(inout: mat[y0 * matrix[graph_id].N + x0]) untied mergeable
-    t2.get();
-      task3(&mat[y0 * matrix[graph_id].N + x0], 
-            &mat[y1 * matrix[graph_id].N + x1], 
-            &mat[y2 * matrix[graph_id].N + x2], payload);
-    
+      task3(
+        &mat[y0 * matrix[graph_id].N + x0], 
+        &mat[y1 * matrix[graph_id].N + x1], 
+        &mat[y2 * matrix[graph_id].N + x2], payload);
     break;
   }
   
@@ -597,11 +636,11 @@ void OpenMPApp::insert_task(task_args_t *args, int num_args, payload_t payload, 
     int y2 = args[2].y;
     int x3 = args[3].x;
     int y3 = args[3].y;
-    // #pragma omp task depend(in: mat[y1 * matrix[graph_id].N + x1]) depend(in: mat[y2 * matrix[graph_id].N + x2]) depend(in: mat[y3 * matrix[graph_id].N + x3]) depend(inout: mat[y0 * matrix[graph_id].N + x0]) untied mergeable
-      task4(&mat[y0 * matrix[graph_id].N + x0], 
-            &mat[y1 * matrix[graph_id].N + x1], 
-            &mat[y2 * matrix[graph_id].N + x2], 
-            &mat[y3 * matrix[graph_id].N + x3], payload);
+    task4(
+      &mat[y0 * matrix[graph_id].N + x0], 
+      &mat[y1 * matrix[graph_id].N + x1], 
+      &mat[y2 * matrix[graph_id].N + x2], 
+      &mat[y3 * matrix[graph_id].N + x3], payload);
     break;
   }
   
@@ -767,6 +806,7 @@ void OpenMPApp::insert_task(task_args_t *args, int num_args, payload_t payload, 
   default:
     assert(false && "unexpected num_args");
   };
+
 }
 
 void OpenMPApp::debug_printf(int verbose_level, const char *format, ...)
