@@ -9,13 +9,18 @@ SLIB_SYMLINK=libcore_s.a
 
 DEBUG ?= 0
 
+RELWITHDEBINFO ?= 0
+
 CFLAGS ?=
 CFLAGS += -std=c11 -fPIC
 
 CXXFLAGS ?=
 CXXFLAGS += -std=c++11 -fPIC
 
-ifeq ($(strip $(DEBUG)),0)
+ifeq ($(strip $(RELWITHDEBINFO)),1)
+	CFLAGS += -O2 -g -DNDEBUG
+	CXXFLAGS += -O2 -g -DNDEBUG
+else ifeq ($(strip $(DEBUG)),0)
 	CFLAGS += -O3
 	CXXFLAGS += -O3
 else

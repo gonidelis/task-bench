@@ -1,5 +1,7 @@
 DEBUG ?= 0
 
+RELWITHDEBINFO ?= 0
+
 CXX ?= g++
 
 CXXFLAGS = -std=c++11 -Wall -fopenmp
@@ -8,6 +10,9 @@ LDFLAGS  = -std=c++11 -Wall -fopenmp
 ifeq ($(strip $(DEBUG)),1)
 CXXFLAGS += -g -O0
 LDFLAGS  += -g -O0
+else ifeq ($(strip $(RELWITHDEBINFO)),1)
+CXXFLAGS += -O2 -g -DNDEBUG
+LDFLAGS += -O2 -g -DNDEBUG
 else
 CXXFLAGS += -O3 -march=native
 LDFLAGS  += -O3 -march=native
