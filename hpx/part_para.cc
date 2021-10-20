@@ -201,7 +201,7 @@ int hpx_main(int argc, char *argv[])
           } //
         }
           
-        hpx::for_loop(hpx::execution::par, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
+        hpx::for_loop(hpx::execution::seq, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
           [&](long point)
           {
             long point_index = point - first_point;
