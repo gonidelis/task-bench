@@ -7,6 +7,7 @@
 
 #include "../core/core.h"
 
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <string> 
@@ -64,6 +65,8 @@ int hpx_main(int argc, char *argv[])
   std::vector<hpx::future<void>> sets;
 
   for (int iter = 0; iter < 2; ++iter) {
+    auto duration_exchange_data = 0.0;
+    auto duration_for_loop_execute = 0.0;  
     
     hpx::chrono::high_resolution_timer timer;
 
@@ -137,8 +140,10 @@ int hpx_main(int argc, char *argv[])
           reverse_dependencies[dset][point_index] = graph.reverse_dependencies(dset, point);
         }
       }
-
+    
+      
       for (long timestep = 0; timestep < graph.timesteps; ++timestep) {
+
         long offset = graph.offset_at_timestep(timestep);
         long width = graph.width_at_timestep(timestep);
 
@@ -150,7 +155,9 @@ int hpx_main(int argc, char *argv[])
         auto &rev_deps = reverse_dependencies[dset];
 
         sets.clear();
-
+        
+        // measure for the for-loop for sending/receiving data
+        auto start_0 = std::chrono::high_resolution_clock::now();
         for (long point = first_point; point <= last_point; ++point) {
           
           long point_index = point - first_point;
@@ -173,7 +180,7 @@ int hpx_main(int argc, char *argv[])
                     hpx::collectives::that_site_arg(locality_by_point[dep]), point_output));
               }
             }
-          }  //
+          }  // send
 
           hpx::wait_all(sets);
               
@@ -198,9 +205,16 @@ int hpx_main(int argc, char *argv[])
                 point_n_inputs++;
               }
             }
-          } //
-        }
-          
+          } // receive
+        } // for loop for exchange
+
+        auto stop_0 = std::chrono::high_resolution_clock::now();
+        auto this_exchange_data = std::chrono::duration_cast <std::chrono::milliseconds >(stop_0 - start_0);
+        duration_exchange_data += this_exchange_data.count();
+        
+
+        // measure for using hpx for loop to execute points
+        auto start_1 = std::chrono::high_resolution_clock::now();
         hpx::for_loop(hpx::execution::seq, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
           [&](long point)
           {
@@ -215,11 +229,26 @@ int hpx_main(int argc, char *argv[])
                                 point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
                                 scratch_ptr + scratch_bytes * point_index, scratch_bytes);
           }); // 
+        auto stop_1 = std::chrono::high_resolution_clock::now();
+        auto this_for_loop_execute = std::chrono::duration_cast <std::chrono::milliseconds >(stop_1 - start_1);
+        duration_for_loop_execute += this_for_loop_execute.count();
         
-      }
-    }
+        
+      } // for time steps loop 
+      
+
+    } // for graphs loop
     elapsed = timer.elapsed(); 
-  }
+
+    if (iter == 1) {
+      std::cout << "Time taken by exchanging data, on locality " << this_locality << " is: "
+                << duration_exchange_data << " microseconds" << std::endl;
+      
+      std::cout << "Time taken by using for loop to execute points, on locality " << this_locality << " is: "
+                << duration_for_loop_execute << " microseconds" << std::endl;
+    }
+
+  } // for 2-time iter
 
   if (this_locality == 0) {
     app.report_timing(elapsed);
