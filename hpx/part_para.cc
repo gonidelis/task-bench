@@ -215,7 +215,7 @@ int hpx_main(int argc, char *argv[])
 
         // measure for using hpx for loop to execute points
         auto start_1 = std::chrono::high_resolution_clock::now();
-        hpx::for_loop(hpx::execution::seq, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
+        hpx::for_loop(hpx::execution::par, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
           [&](long point)
           {
             long point_index = point - first_point;

@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
           tag_bits_by_point[p] = p - r_first_point;
           // Has to fit in 7 bits because MPI only guarrantees that
           // tags can use 15 bits.
-          assert((tag_bits_by_point[p] & ~0x7F) == 0);
+          //assert((tag_bits_by_point[p] & ~0x7F) == 0);
         }
       }
 
