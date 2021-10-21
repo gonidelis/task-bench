@@ -225,11 +225,10 @@ int hpx_main(int argc, char *argv[])
                                 scratch_ptr + scratch_bytes * point_index, scratch_bytes);
 
             auto stop = std::chrono::high_resolution_clock::now();
-            auto this_lambda = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-
+            auto this_lambda = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
             if (iter == 1) {
-                std::cout << "Time taken by executing lambda function (inside hpx for loop), on locality " << this_locality << " is: "
-                          << this_lambda.count() << " microseconds" << std::endl;
+                std::cout << "Time by executing lambda function on locality " << this_locality << " is: "
+                          << this_lambda.count() << " nanoseconds" << std::endl;
             }
 
           }); // hpx_for loop  

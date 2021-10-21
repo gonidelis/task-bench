@@ -248,21 +248,21 @@ double execute_kernel_compute(const Kernel &kernel)
     }
   }
 #else
-  double A[64];
+  double A[1280];
   
-  for (int i = 0; i < 64; i++) {
+  for (int i = 0; i < 1280; i++) {
     A[i] = 1.2345;
   }
   
   for (long iter = 0; iter < kernel.iterations; iter++) {
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < 1280; i++) {
         A[i] = A[i] * A[i] + A[i];
     }
   } 
 #endif
   double *C = (double *)A;
   double dot = 1.0;
-  for (int i = 0; i < 64; i++) {
+  for (int i = 0; i < 1280; i++) {
     dot *= C[i];
   }
   return dot;  
