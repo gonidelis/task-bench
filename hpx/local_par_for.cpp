@@ -239,80 +239,83 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
   int num_args = 0;
   int ct = 0;  
   
-  std::vector<hpx::future<void>> futures(width);
+  // std::vector<hpx::future<void>> futures(width);
 
-  for(int x = offset; x <= offset+width-1; x++) 
-  // hpx::for_loop(offset, offset+width-1, [&](int x)
-  {
-    std::vector<std::pair<long, long> > deps = g.dependencies(dset, x);   
-    num_args = 0;
-    ct = 0;    
-    
-    if (deps.size() == 0) {
-      num_args = 1;
-      debug_printf(1, "%d[%d] ", x, num_args);
-      args[ct].x = x;
-      args[ct].y = t % nb_fields;
-      ct ++;
-    } else {
-      if (t == 0) {
+  // for(int x = offset; x <= offset+width-1; x++) 
+  hpx::for_loop(offset, offset+width, 
+    [&](int x)
+    {
+      std::vector<std::pair<long, long> > deps = g.dependencies(dset, x);   
+      num_args = 0;
+      ct = 0;    
+      
+      if (deps.size() == 0) {
         num_args = 1;
         debug_printf(1, "%d[%d] ", x, num_args);
         args[ct].x = x;
         args[ct].y = t % nb_fields;
         ct ++;
       } else {
-        num_args = 1;
-        args[ct].x = x;
-        args[ct].y = t % nb_fields;
-        ct ++;
-        long last_offset = g.offset_at_timestep(t-1);
-        long last_width = g.width_at_timestep(t-1);
-        for (std::pair<long, long> dep : deps) {
-          num_args += dep.second - dep.first + 1;
-          debug_printf(1, "%d[%d, %d, %d] ", x, num_args, dep.first, dep.second); 
-          for (int i = dep.first; i <= dep.second; i++) {
-            if (i >= last_offset && i < last_offset + last_width) {
-              args[ct].x = i;
-              args[ct].y = (t-1) % nb_fields;
-              ct ++;
-            } else {
-              num_args --;
+        if (t == 0) {
+          num_args = 1;
+          debug_printf(1, "%d[%d] ", x, num_args);
+          args[ct].x = x;
+          args[ct].y = t % nb_fields;
+          ct ++;
+        } else {
+          num_args = 1;
+          args[ct].x = x;
+          args[ct].y = t % nb_fields;
+          ct ++;
+          long last_offset = g.offset_at_timestep(t-1);
+          long last_width = g.width_at_timestep(t-1);
+          for (std::pair<long, long> dep : deps) {
+            num_args += dep.second - dep.first + 1;
+            debug_printf(1, "%d[%d, %d, %d] ", x, num_args, dep.first, dep.second); 
+            for (int i = dep.first; i <= dep.second; i++) {
+              if (i >= last_offset && i < last_offset + last_width) {
+                args[ct].x = i;
+                args[ct].y = (t-1) % nb_fields;
+                ct ++;
+              } else {
+                num_args --;
+              }
             }
           }
         }
       }
+      
+      assert(num_args == ct);
+
+      
+      // hpx::shared_future<int> num_args_f = hpx::make_ready_future(num_args);
+      // hpx::shared_future<task_args_t> args_f = hpx::make_ready_future(&args);
+      // hpx::shared_future<payload_t> payload_f = hpx::make_ready_future(payload);
+      // hpx::shared_future<size_t> idx_f = hpx::make_ready_future(idx);
+
+      payload.y = t;
+      payload.x = x;
+      payload.graph = g;
+      // insert_task(args, num_args, payload, idx);
+      std::vector<tile_t*> tiles(num_args);
+      tile_t *tile_out = &mat[args[0].y * matrix[idx].N + args[0].x];
+      for(int i = 1 ; i < num_args ; ++i)
+      {
+        tiles[i] = &mat[args[i].y * matrix[idx].N + args[i].x];
+      }
+
+      // futures[x] = hpx::async(task, tile_out, std::move(tiles), payload, num_args);
+      task(tile_out, tiles, payload, num_args);
+
+      // 1. Task Block Implementation
+      // hpx::define_task_block(
+      //   hpx::execution::par,
+      //   [&](hpx::task_block<>& tb) {
+      //     tb.run([&] {task(tile_out, tiles, payload, num_args);} );
+      // });
     }
-    
-    assert(num_args == ct);
-
-    
-    // hpx::shared_future<int> num_args_f = hpx::make_ready_future(num_args);
-    // hpx::shared_future<task_args_t> args_f = hpx::make_ready_future(&args);
-    // hpx::shared_future<payload_t> payload_f = hpx::make_ready_future(payload);
-    // hpx::shared_future<size_t> idx_f = hpx::make_ready_future(idx);
-
-    payload.y = t;
-    payload.x = x;
-    payload.graph = g;
-    // insert_task(args, num_args, payload, idx);
-    std::vector<tile_t*> tiles(num_args);
-    tile_t *tile_out = &mat[args[0].y * matrix[idx].N + args[0].x];
-    for(int i = 1 ; i < num_args ; ++i)
-    {
-      tiles[i] = &mat[args[i].y * matrix[idx].N + args[i].x];
-    }
-
-    futures[x] = hpx::async(task, tile_out, std::move(tiles), payload, num_args);
-
-    // 1. Task Block Implementation
-    // hpx::define_task_block(
-    //   hpx::execution::par,
-    //   [&](hpx::task_block<>& tb) {
-    //     tb.run([&] {task(tile_out, tiles, payload, num_args);} );
-    // });
-  }
-  hpx::wait_all(futures);
+  );
+  // hpx::wait_all();
 }
 
 void OpenMPApp::debug_printf(int verbose_level, const char *format, ...)
