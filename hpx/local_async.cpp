@@ -302,8 +302,8 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
       tiles[i] = &mat[args[i].y * matrix[idx].N + args[i].x];
     }
 
-    // futures[x] = hpx::async(task, tile_out, std::move(tiles), payload, num_args);
-    task(tile_out, tiles, payload, num_args);
+    futures[x] = hpx::async(task, tile_out, std::move(tiles), payload, num_args);
+    // task(tile_out, tiles, payload, num_args);
 
     // 1. Task Block Implementation
     // hpx::define_task_block(
@@ -312,7 +312,7 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
     //     tb.run([&] {task(tile_out, tiles, payload, num_args);} );
     // });
   }
-  hpx::wait_all();
+  hpx::wait_all(futures);
 }
 
 void OpenMPApp::debug_printf(int verbose_level, const char *format, ...)
