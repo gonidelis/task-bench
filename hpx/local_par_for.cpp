@@ -232,6 +232,10 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
   
   // std::vector<hpx::future<void>> futures(width);
 
+<<<<<<< HEAD
+=======
+  payload_t payload;  // @Giannis: try moving that inside the for_loop
+>>>>>>> Move values written in paralle, inside for_loop to avoid segfaults
 
   // for(int x = offset; x <= offset+width-1; x++) 
   hpx::for_loop(hpx::execution::par, offset, offset+width, 
