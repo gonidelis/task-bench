@@ -210,8 +210,8 @@ int hpx_main(int argc, char *argv[])
         hpx::for_loop(hpx::execution::par, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
           [&](long point)
           {
-            // measure for using hpx for loop to execute points
-            auto start = std::chrono::high_resolution_clock::now();
+            //// measure for using hpx for loop to execute points
+            //auto start = std::chrono::high_resolution_clock::now();
             
             long point_index = point - first_point;
           
@@ -224,12 +224,12 @@ int hpx_main(int argc, char *argv[])
                                 point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
                                 scratch_ptr + scratch_bytes * point_index, scratch_bytes);
 
-            auto stop = std::chrono::high_resolution_clock::now();
-            auto this_lambda = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-            if (iter == 1) {
-                std::cout << "Time by executing lambda function on locality " << this_locality << " is: "
-                          << this_lambda.count() << " nanoseconds" << std::endl;
-            }
+            //auto stop = std::chrono::high_resolution_clock::now();
+            //auto this_lambda = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+            //if (iter == 1) {
+            //    std::cout << "Time by executing lambda function on locality " << this_locality << " is: "
+            //              << this_lambda.count() << " nanoseconds" << std::endl;
+            //}
 
           }); // hpx_for loop  
       } // for time steps loop 
