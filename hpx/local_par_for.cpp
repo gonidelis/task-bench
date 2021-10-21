@@ -229,23 +229,23 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
   long dset = g.dependence_set_at_timestep(t);
   int nb_fields = g.nb_fields;
   
-  task_args_t args[MAX_NUM_ARGS];
-  payload_t payload;
-  int num_args = 0;
-  int ct = 0;  
   
   // std::vector<hpx::future<void>> futures(width);
+
 
   // for(int x = offset; x <= offset+width-1; x++) 
   hpx::for_loop(hpx::execution::par, offset, offset+width, 
     [&](int x)
     {
 
-      std::cout << "Thread: " << hpx::get_worker_thread_num() << " x: " << x << std::endl;
+      int num_args = 0;
+      int ct = 0;  
+      task_args_t args[MAX_NUM_ARGS];
 
       std::vector<std::pair<long, long> > deps = g.dependencies(dset, x);   
       num_args = 0;
       ct = 0;    
+      payload_t payload;  // @Giannis: try moving that inside the for_loop
       
       if (deps.size() == 0) {
         num_args = 1;
@@ -303,7 +303,7 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
       }
 
       // futures[x] = hpx::async(task, tile_out, std::move(tiles), payload, num_args);
-      task(tile_out, std::move(tiles), payload, num_args);
+      task(tile_out, tiles, payload, num_args);
 
       // 1. Task Block Implementation
       // hpx::define_task_block(
