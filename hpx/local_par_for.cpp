@@ -210,14 +210,9 @@ void OpenMPApp::execute_main_loop()
   for (unsigned i = 0; i < graphs.size(); i++) {
     const TaskGraph &g = graphs[i];
     for (int y = 0; y < g.timesteps; y++) {
-      hpx::define_task_block(
-        hpx::execution::par,
-          [&](hpx::task_block<>& tb) {
-            tb.run([&] {execute_timestep(i, y);
-        });
-      });
-    }
-  }        
+      execute_timestep(i, y);
+    } 
+  }      
 
   double elapsed = Timer::time_end();
   report_timing(elapsed);
@@ -242,9 +237,12 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
   // std::vector<hpx::future<void>> futures(width);
 
   // for(int x = offset; x <= offset+width-1; x++) 
-  hpx::for_loop(offset, offset+width, 
+  hpx::for_loop(hpx::execution::par, offset, offset+width, 
     [&](int x)
     {
+
+      std::cout << "Thread: " << hpx::get_worker_thread_num() << " x: " << x << std::endl;
+
       std::vector<std::pair<long, long> > deps = g.dependencies(dset, x);   
       num_args = 0;
       ct = 0;    
@@ -305,7 +303,7 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
       }
 
       // futures[x] = hpx::async(task, tile_out, std::move(tiles), payload, num_args);
-      task(tile_out, tiles, payload, num_args);
+      task(tile_out, std::move(tiles), payload, num_args);
 
       // 1. Task Block Implementation
       // hpx::define_task_block(
@@ -315,7 +313,6 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
       // });
     }
   );
-  // hpx::wait_all();
 }
 
 void OpenMPApp::debug_printf(int verbose_level, const char *format, ...)
