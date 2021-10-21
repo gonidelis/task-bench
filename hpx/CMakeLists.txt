@@ -22,7 +22,7 @@ find_package(HPX REQUIRED)
 
 link_directories(${CMAKE_SOURCE_DIR}/../core)
 
-add_executable(local_async local2.cpp)
+add_executable(local_async local_async.cpp)
 target_link_libraries(local_async PUBLIC HPX::hpx HPX::wrap_main core_s)
 
 add_executable(local_par_for local_par_for.cpp)
