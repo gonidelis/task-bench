@@ -65,8 +65,6 @@ int hpx_main(int argc, char *argv[])
   std::vector<hpx::future<void>> sets;
 
   for (int iter = 0; iter < 2; ++iter) {
-    auto duration_exchange_data = 0.0;
-    auto duration_for_loop_execute = 0.0;  
     
     hpx::chrono::high_resolution_timer timer;
 
@@ -208,16 +206,13 @@ int hpx_main(int argc, char *argv[])
           } // receive
         } // for loop for exchange
 
-        auto stop_0 = std::chrono::high_resolution_clock::now();
-        auto this_exchange_data = std::chrono::duration_cast <std::chrono::milliseconds >(stop_0 - start_0);
-        duration_exchange_data += this_exchange_data.count();
         
-
-        // measure for using hpx for loop to execute points
-        auto start_1 = std::chrono::high_resolution_clock::now();
         hpx::for_loop(hpx::execution::par, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
           [&](long point)
           {
+            // measure for using hpx for loop to execute points
+            auto start = std::chrono::high_resolution_clock::now();
+            
             long point_index = point - first_point;
           
             auto &point_input_ptr = input_ptr[point_index];
@@ -228,25 +223,21 @@ int hpx_main(int argc, char *argv[])
                                 point_output.data(), point_output.size(),
                                 point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
                                 scratch_ptr + scratch_bytes * point_index, scratch_bytes);
-          }); // 
-        auto stop_1 = std::chrono::high_resolution_clock::now();
-        auto this_for_loop_execute = std::chrono::duration_cast <std::chrono::milliseconds >(stop_1 - start_1);
-        duration_for_loop_execute += this_for_loop_execute.count();
-        
-        
+
+            auto stop = std::chrono::high_resolution_clock::now();
+            auto this_lambda = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+
+            if (iter == 1) {
+                std::cout << "Time taken by executing lambda function (inside hpx for loop), on locality " << this_locality << " is: "
+                          << this_lambda.count() << " microseconds" << std::endl;
+            }
+
+          }); // hpx_for loop  
       } // for time steps loop 
       
 
     } // for graphs loop
     elapsed = timer.elapsed(); 
-
-    if (iter == 1) {
-      std::cout << "Time taken by exchanging data, on locality " << this_locality << " is: "
-                << duration_exchange_data << " microseconds" << std::endl;
-      
-      std::cout << "Time taken by using for loop to execute points, on locality " << this_locality << " is: "
-                << duration_for_loop_execute << " microseconds" << std::endl;
-    }
 
   } // for 2-time iter
 
