@@ -207,12 +207,14 @@ void OpenMPApp::execute_main_loop()
   
   Timer::time_start();
   
-  for (unsigned i = 0; i < graphs.size(); i++) {
+  hpx::for_loop(hpx::execution::par,
+    int(0), graphs.size(), [&](int i) {
     const TaskGraph &g = graphs[i];
-    for (int y = 0; y < g.timesteps; y++) {
+    hpx::for_loop(hpx::execution::par, // try doing that with a dataflow/taskblock
+    int(0), g.timesteps, [&](int y) {
       execute_timestep(i, y);
-    }
-  }
+    });
+  });
 
   double elapsed = Timer::time_end();
   report_timing(elapsed);
