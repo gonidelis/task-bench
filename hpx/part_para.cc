@@ -13,9 +13,10 @@
 #include <string> 
 #include <tuple>
 
+#if !defined(HPX_COMPUTE_DEVICE_CODE)
 #include "hpx/hpx.hpp"
 #include "hpx/hpx_init.hpp"
-#include "hpx/include/actions.hpp"
+#include "hpx/include/compute.hpp"
 #include "hpx/local/chrono.hpp"
 #include "hpx/modules/collectives.hpp"
 
@@ -34,6 +35,24 @@ int hpx_main(int argc, char *argv[])
   if (this_locality == 0) app.display();
 
   std::vector<std::vector<char> > scratch;
+
+  // allocate channel communicator
+  auto comm = hpx::collectives::create_channel_communicator(hpx::launch::sync,
+      channel_communicator_name, hpx::collectives::num_sites_arg(num_localities),
+      hpx::collectives::this_site_arg(this_locality));
+
+  // block executor with block allocator
+  using executor_type = hpx::compute::host::block_executor<>;
+  using allocator_type = hpx::compute::host::block_allocator<char>;
+  
+  auto numa_nodes = hpx::compute::host::numa_domains();
+  allocator_type alloc(numa_nodes);
+  executor_type exec(numa_nodes);
+  auto policy = hpx::execution::par.on(exec);
+      
+  using data_type = std::vector<char>;
+
+  std::vector<hpx::future<void>> sets;
 
   for (auto graph : app.graphs) {
     long first_point = this_locality * graph.max_width / num_localities;
@@ -54,15 +73,6 @@ int hpx_main(int argc, char *argv[])
   }
   
   double elapsed = 0.0;
-
-  // allocate channel communicator
-  auto comm = hpx::collectives::create_channel_communicator(hpx::launch::sync,
-      channel_communicator_name, hpx::collectives::num_sites_arg(num_localities),
-      hpx::collectives::this_site_arg(this_locality));
-      
-  using data_type = std::vector<char>;
-
-  std::vector<hpx::future<void>> sets;
 
   for (int iter = 0; iter < 2; ++iter) {
     
@@ -103,6 +113,28 @@ int hpx_main(int argc, char *argv[])
       std::vector<std::vector<size_t> > input_bytes(n_points);
       std::vector<long> n_inputs(n_points);
       std::vector<std::vector<char> > outputs(n_points);
+    /***
+      //std::vector<std::vector<std::vector<char> > > inputs(n_points);
+      typedef hpx::compute::vector<char, allocator_type> inputs_data_type;
+      std::vector<std::vector<inputs_data_type>> inputs(n_points, alloc);
+      
+      //std::vector<std::vector<const char *> > input_ptr(n_points);
+      typedef hpx::compute::vector<const char *, allocator_type> input_ptr_data_type;
+      std::vector<input_ptr_data_type> input_ptr(n_points, alloc);
+      
+      //std::vector<std::vector<size_t> > input_bytes(n_points);
+      typedef hpx::compute::vector<size_t, allocator_type> input_bytes_data_type;
+      std::vector<input_bytes_data_type> input_bytes(n_points, alloc);
+
+      //std::vector<long> n_inputs(n_points);
+      typedef hpx::compute::vector<long, allocator_type> n_inputs_data_type;
+      n_inputs_data_type n_inputs(n_points, alloc);
+      
+      //std::vector<std::vector<char> > outputs(n_points);
+      typedef hpx::compute::vector<char, allocator_type> outputs_data_type;
+      std::vector<outputs_data_type> outputs(n_points, alloc);
+    ***/
+
       for (long point = first_point; point <= last_point; ++point) {
         long point_index = point - first_point;
 
@@ -154,8 +186,6 @@ int hpx_main(int argc, char *argv[])
 
         sets.clear();
         
-        // measure for the for-loop for sending/receiving data
-        auto start_0 = std::chrono::high_resolution_clock::now();
         for (long point = first_point; point <= last_point; ++point) {
           
           long point_index = point - first_point;
@@ -204,10 +234,11 @@ int hpx_main(int argc, char *argv[])
               }
             }
           } // receive
+          
         } // for loop for exchange
 
         
-        hpx::for_loop(hpx::execution::par, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
+        hpx::for_loop(policy, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
           [&](long point)
           {
             //// measure for using hpx for loop to execute points
@@ -261,3 +292,4 @@ int main(int argc, char* argv[])
     
     return hpx::init(argc, argv, init_args);
 }
+#endif
