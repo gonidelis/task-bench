@@ -40,15 +40,6 @@ int hpx_main(int argc, char *argv[])
   auto comm = hpx::collectives::create_channel_communicator(hpx::launch::sync,
       channel_communicator_name, hpx::collectives::num_sites_arg(num_localities),
       hpx::collectives::this_site_arg(this_locality));
-
-  // block executor with block allocator
-  using executor_type = hpx::compute::host::block_executor<>;
-  using allocator_type = hpx::compute::host::block_allocator<char>;
-  
-  auto numa_nodes = hpx::compute::host::numa_domains();
-  allocator_type alloc(numa_nodes);
-  executor_type exec(numa_nodes);
-  auto policy = hpx::execution::par.on(exec);
       
   using data_type = std::vector<char>;
 
@@ -77,6 +68,7 @@ int hpx_main(int argc, char *argv[])
   for (int iter = 0; iter < 2; ++iter) {
     
     hpx::chrono::high_resolution_timer timer;
+    auto duration_lambda_execute = 0.0;  
 
     for (auto graph : app.graphs) {
    
@@ -113,27 +105,6 @@ int hpx_main(int argc, char *argv[])
       std::vector<std::vector<size_t> > input_bytes(n_points);
       std::vector<long> n_inputs(n_points);
       std::vector<std::vector<char> > outputs(n_points);
-    /***
-      //std::vector<std::vector<std::vector<char> > > inputs(n_points);
-      typedef hpx::compute::vector<char, allocator_type> inputs_data_type;
-      std::vector<std::vector<inputs_data_type>> inputs(n_points, alloc);
-      
-      //std::vector<std::vector<const char *> > input_ptr(n_points);
-      typedef hpx::compute::vector<const char *, allocator_type> input_ptr_data_type;
-      std::vector<input_ptr_data_type> input_ptr(n_points, alloc);
-      
-      //std::vector<std::vector<size_t> > input_bytes(n_points);
-      typedef hpx::compute::vector<size_t, allocator_type> input_bytes_data_type;
-      std::vector<input_bytes_data_type> input_bytes(n_points, alloc);
-
-      //std::vector<long> n_inputs(n_points);
-      typedef hpx::compute::vector<long, allocator_type> n_inputs_data_type;
-      n_inputs_data_type n_inputs(n_points, alloc);
-      
-      //std::vector<std::vector<char> > outputs(n_points);
-      typedef hpx::compute::vector<char, allocator_type> outputs_data_type;
-      std::vector<outputs_data_type> outputs(n_points, alloc);
-    ***/
 
       for (long point = first_point; point <= last_point; ++point) {
         long point_index = point - first_point;
@@ -238,11 +209,11 @@ int hpx_main(int argc, char *argv[])
         } // for loop for exchange
 
         
-        hpx::for_loop(policy, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
+        hpx::for_loop(hpx::execution::seq, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
           [&](long point)
           {
-            //// measure for using hpx for loop to execute points
-            //auto start = std::chrono::high_resolution_clock::now();
+            // measure for using hpx for loop to execute points
+            auto start = std::chrono::high_resolution_clock::now();
             
             long point_index = point - first_point;
           
@@ -255,21 +226,25 @@ int hpx_main(int argc, char *argv[])
                                 point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
                                 scratch_ptr + scratch_bytes * point_index, scratch_bytes);
 
-            //auto stop = std::chrono::high_resolution_clock::now();
-            //auto this_lambda = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-            //if (iter == 1) {
-            //    std::cout << "Time by executing lambda function on locality " << this_locality << " is: "
-            //              << this_lambda.count() << " nanoseconds" << std::endl;
-            //}
-
+            auto stop = std::chrono::high_resolution_clock::now();
+            auto this_lambda = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+            duration_lambda_execute += this_lambda.count();
           }); // hpx_for loop  
+
       } // for time steps loop 
       
 
     } // for graphs loop
     elapsed = timer.elapsed(); 
 
+    if (iter == 1) {
+      std::cout << "Time by executing lambda function is: "
+                << duration_lambda_execute << " nanoseconds" << std::endl;
+    }
+
   } // for 2-time iter
+
+  
 
   if (this_locality == 0) {
     app.report_timing(elapsed);
