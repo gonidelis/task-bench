@@ -208,28 +208,31 @@ int hpx_main(int argc, char *argv[])
           
         } // for loop for exchange
 
-        
-        hpx::for_loop(hpx::execution::seq, std::max(first_point, offset), std::min(last_point, offset + width - 1) + 1,
-          [&](long point)
-          {
-            // measure for using hpx for loop to execute points
-            auto start = std::chrono::high_resolution_clock::now();
-            
-            long point_index = point - first_point;
-          
-            auto &point_input_ptr = input_ptr[point_index];
-            auto &point_input_bytes = input_bytes[point_index];
-            auto &point_n_inputs = n_inputs[point_index];
-            auto &point_output = outputs[point_index];
-            graph.execute_point(timestep, point,
-                                point_output.data(), point_output.size(),
-                                point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
-                                scratch_ptr + scratch_bytes * point_index, scratch_bytes);
+        hpx::for_loop(
+            hpx::execution::par.with(hpx::execution::static_chunk_size(1)),
+            std::max(first_point, offset),
+            std::min(last_point, offset + width - 1) + 1, [&](long point) {
+              //// measure for using hpx for loop to execute points
+              //auto start = std::chrono::high_resolution_clock::now();
 
-            auto stop = std::chrono::high_resolution_clock::now();
-            auto this_lambda = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-            duration_lambda_execute += this_lambda.count();
-          }); // hpx_for loop  
+              long point_index = point - first_point;
+
+              auto &point_input_ptr = input_ptr[point_index];
+              auto &point_input_bytes = input_bytes[point_index];
+              auto &point_n_inputs = n_inputs[point_index];
+              auto &point_output = outputs[point_index];
+              graph.execute_point(timestep, point, point_output.data(),
+                                  point_output.size(), point_input_ptr.data(),
+                                  point_input_bytes.data(), point_n_inputs,
+                                  scratch_ptr + scratch_bytes * point_index,
+                                  scratch_bytes);
+
+              //auto stop = std::chrono::high_resolution_clock::now();
+              //auto this_lambda =
+              //    std::chrono::duration_cast<std::chrono::nanoseconds>(stop -
+              //                                                         start);
+              //duration_lambda_execute += this_lambda.count();
+            });  // hpx_for loop
 
       } // for time steps loop 
       
@@ -237,10 +240,10 @@ int hpx_main(int argc, char *argv[])
     } // for graphs loop
     elapsed = timer.elapsed(); 
 
-    if (iter == 1) {
-      std::cout << "Time by executing lambda function is: "
-                << duration_lambda_execute << " nanoseconds" << std::endl;
-    }
+    //if (iter == 1) {
+    //  std::cout << "Time by executing lambda function is: "
+    //            << duration_lambda_execute << " nanoseconds" << std::endl;
+    //}
 
   } // for 2-time iter
 

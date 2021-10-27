@@ -24,5 +24,3 @@ link_directories(${CMAKE_SOURCE_DIR}/../core)
 add_executable(part_para part_para.cc)
 target_link_libraries(part_para PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-#add_executable(no_para_for no_para_for.cc)
-#target_link_libraries(no_para_for PUBLIC HPX::hpx HPX::wrap_main core_s)
