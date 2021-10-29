@@ -24,6 +24,26 @@
 constexpr char const* channel_communicator_name =
   "hpx_comm_task";
 
+namespace detail{
+  std::tuple<long, long, long> tile(std::uint32_t loc_idx, long column, std::uint32_t numlocs)
+  {
+    long first_point;
+    long n_points = column / numlocs;
+    long rest = column % numlocs;
+    if (loc_idx < rest){
+      n_points ++;
+    }
+
+    if (rest != 0 && loc_idx >= rest){
+      first_point = (n_points + 1) * rest + n_points * (loc_idx - rest);
+    } else {
+      first_point = n_points * loc_idx;
+    }
+    long last_point = first_point + n_points - 1;
+    return std::make_tuple(first_point, last_point, n_points);
+  }
+} // namespace detail
+
 ///////////////////////////////////////////////////////////////////////////////
 int hpx_main(int argc, char *argv[]) 
 {    
@@ -51,9 +71,11 @@ int hpx_main(int argc, char *argv[])
   auto policy = hpx::execution::par.with(fixed).on(exec);
 
   for (auto graph : app.graphs) {
-    long first_point = this_locality * graph.max_width / num_localities;
-    long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
-    long n_points = last_point - first_point + 1;
+    //long first_point = this_locality * graph.max_width / num_localities;
+    //long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
+    //long n_points = last_point - first_point + 1;
+    long first_point, last_point, n_points;
+    std::tie(first_point, last_point, n_points) = detail::tile(this_locality,graph.max_width, num_localities);
 
     size_t scratch_bytes = graph.scratch_bytes_per_task;
     scratch.emplace_back(scratch_bytes * n_points);
@@ -77,9 +99,11 @@ int hpx_main(int argc, char *argv[])
 
     for (auto graph : app.graphs) {
    
-      long first_point = this_locality * graph.max_width / num_localities;
-      long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
-      long n_points = last_point - first_point + 1;
+      //long first_point = this_locality * graph.max_width / num_localities;
+      //long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
+      //long n_points = last_point - first_point + 1;
+      long first_point, last_point, n_points;
+      std::tie(first_point, last_point, n_points) = detail::tile(this_locality,graph.max_width, num_localities);
 
       size_t scratch_bytes = graph.scratch_bytes_per_task;
       char *scratch_ptr = scratch[graph.graph_index].data();
@@ -214,12 +238,8 @@ int hpx_main(int argc, char *argv[])
         } // for loop for exchange
 
         hpx::for_loop(
-            policy,
-            std::max(first_point, offset),
+            policy, std::max(first_point, offset),
             std::min(last_point, offset + width - 1) + 1, [&](long point) {
-              //// measure for using hpx for loop to execute points
-              //auto start = std::chrono::high_resolution_clock::now();
-
               long point_index = point - first_point;
 
               auto &point_input_ptr = input_ptr[point_index];
@@ -231,12 +251,6 @@ int hpx_main(int argc, char *argv[])
                                   point_input_bytes.data(), point_n_inputs,
                                   scratch_ptr + scratch_bytes * point_index,
                                   scratch_bytes);
-
-              //auto stop = std::chrono::high_resolution_clock::now();
-              //auto this_lambda =
-              //    std::chrono::duration_cast<std::chrono::nanoseconds>(stop -
-              //                                                         start);
-              //duration_lambda_execute += this_lambda.count();
             });  // hpx_for loop
 
       } // for time steps loop 
