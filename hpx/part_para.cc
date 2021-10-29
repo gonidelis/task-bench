@@ -82,7 +82,7 @@ int hpx_main(int argc, char *argv[])
 
     char *scratch_ptr = scratch.back().data();
 
-    hpx::for_loop(hpx::execution::par, first_point, last_point + 1,
+    hpx::for_loop(policy, first_point, last_point + 1,
       [&](long point)
       {
         long point_index = point - first_point;
