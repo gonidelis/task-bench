@@ -45,6 +45,10 @@ int hpx_main(int argc, char *argv[])
 
   std::vector<hpx::future<void>> sets;
 
+  using executor = hpx::execution::experimental::fork_join_executor;
+  executor exec;
+  auto policy = hpx::execution::par.on(exec);
+
   for (auto graph : app.graphs) {
     long first_point = this_locality * graph.max_width / num_localities;
     long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
@@ -209,7 +213,7 @@ int hpx_main(int argc, char *argv[])
         } // for loop for exchange
 
         hpx::for_loop(
-            hpx::execution::par.with(hpx::execution::static_chunk_size(1)),
+            policy,
             std::max(first_point, offset),
             std::min(last_point, offset + width - 1) + 1, [&](long point) {
               //// measure for using hpx for loop to execute points
