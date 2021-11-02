@@ -65,10 +65,15 @@ int hpx_main(int argc, char *argv[])
 
   std::vector<hpx::future<void>> sets;
 
+  hpx::execution::static_chunk_size fixed(1);
+
   using executor = hpx::execution::experimental::fork_join_executor;
-  executor exec(hpx::threads::thread_priority::default_);
-  //hpx::execution::static_chunk_size fixed(1);
-  auto policy = hpx::execution::par(hpx::execution::task).on(exec);
+  executor exec(hpx::threads::thread_priority::default_, hpx::threads::thread_stacksize::small_,
+                executor::loop_schedule::static_, std::chrono::microseconds(10));
+  
+  auto policy = hpx::execution::par(hpx::execution::task).on(exec).with(fixed); // this will hang using 4 or 8 nodes.
+
+  //auto policy = hpx::execution::par.with(fixed);   // this will not hang
 
   for (auto graph : app.graphs) {
     //long first_point = this_locality * graph.max_width / num_localities;
@@ -210,7 +215,13 @@ int hpx_main(int argc, char *argv[])
             }
           }  // send
 
+          std::cout << "After send and before wait all futures, this_locality is: " << this_locality
+                    << std::endl;
+
           hpx::wait_all(sets);
+
+          std::cout << "After wait all futures, this_locality is: " << this_locality
+                    << std::endl;
               
           // Receive 
           point_n_inputs = 0;
@@ -229,6 +240,10 @@ int hpx_main(int argc, char *argv[])
                           hpx::collectives::that_site_arg(locality_by_point[dep]));
                   data_type rec_msg = got_msg.get();
                   point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
+
+                  std::cout << "After receive, this_locality is: " << this_locality
+                    << std::endl;
+
                 }
                 point_n_inputs++;
               }
