@@ -66,7 +66,7 @@ int hpx_main(int argc, char *argv[])
   std::vector<hpx::future<void>> sets;
 
   using executor = hpx::execution::experimental::fork_join_executor;
-  executor exec;
+  executor exec(hpx::threads::thread_priority::default_);
   hpx::execution::static_chunk_size fixed(1);
   auto policy = hpx::execution::par.with(fixed).on(exec);
 
