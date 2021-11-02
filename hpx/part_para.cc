@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
+#include <iostream>
 #include <string> 
 #include <tuple>
 
@@ -215,15 +216,15 @@ int hpx_main(int argc, char *argv[])
             }
           }  // send
 
-          std::cout << "After send and before wait all futures, this_locality is: " << this_locality
-                    << ", timestep is: " << timestep << "," << "iter is: " << iter
-                    << std::endl;
+          //std::cout << "After send and before wait all futures, this_locality is: " << this_locality
+          //          << ", timestep is: " << timestep << "," << "iter is: " << iter
+          //          << std::endl;
 
           hpx::wait_all(sets);
 
-          std::cout << "Done send, this_locality is: " << this_locality
-                    << ", timestep is: " << timestep << "," << "iter is: " << iter
-                    << std::endl;
+          //std::cout << "Done send, this_locality is: " << this_locality
+          //          << ", timestep is: " << timestep << "," << "iter is: " << iter
+          //          << std::endl;
               
           // Receive 
           point_n_inputs = 0;
@@ -243,9 +244,9 @@ int hpx_main(int argc, char *argv[])
                   data_type rec_msg = got_msg.get();
                   point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
 
-                  std::cout << "After receive, this_locality is: " << this_locality
-                            << ", timestep is: " << timestep << "," << "iter is: " << iter
-                            << std::endl;
+                  //std::cout << "After receive, this_locality is: " << this_locality
+                  //          << ", timestep is: " << timestep << "," << "iter is: " << iter
+                  //          << std::endl;
 
                 }
                 point_n_inputs++;
@@ -253,15 +254,17 @@ int hpx_main(int argc, char *argv[])
             }
           } // receive
 
-          std::cout << "Done receive, this_locality is: " << this_locality
-                            << ", timestep is: " << timestep << "," << "iter is: " << iter
-                            << std::endl;
+          //std::cout << "Done receive, this_locality is: " << this_locality
+          //                  << ", timestep is: " << timestep << "," << "iter is: " << iter
+          //                  << std::endl;
           
         } // for loop for exchange
 
-        std::cout << "Done for exchange data, this_locality is: " << this_locality
-                            << ", timestep is: " << timestep << "," << "iter is: " << iter
-                            << std::endl;
+        std::cerr << "++ Done for exchange data"
+                  << ", iter is: " << iter << ", this_locality is: " 
+                  << this_locality 
+                  << ", timestep is: " << timestep
+                  << "\n";
 
         hpx::for_loop(
             policy, std::max(first_point, offset),
@@ -272,16 +275,32 @@ int hpx_main(int argc, char *argv[])
               auto &point_input_bytes = input_bytes[point_index];
               auto &point_n_inputs = n_inputs[point_index];
               auto &point_output = outputs[point_index];
+
+              std::cerr << "===> Inside for_loop, before execute point"
+                  << ", iter is: " << iter << ", this_locality is: " 
+                  << this_locality 
+                  << ", timestep is: " << timestep
+                  << "\n";
+
               graph.execute_point(timestep, point, point_output.data(),
                                   point_output.size(), point_input_ptr.data(),
                                   point_input_bytes.data(), point_n_inputs,
                                   scratch_ptr + scratch_bytes * point_index,
                                   scratch_bytes);
+
+              std::cerr << "<===Inside for_loop, after execute point"
+                  << ", iter is: " << iter << ", this_locality is: " 
+                  << this_locality 
+                  << ", timestep is: " << timestep
+                  << "\n";
+
             });  // hpx_for loop
           
-        std::cout << "Done for for_loop execute point, this_locality is: " << this_locality
-                            << ", timestep is: " << timestep << "," << "iter is: " << iter
-                            << std::endl;
+        std::cerr << "***Done for for_loop execute point"
+                  << ", iter is: " << iter << ", this_locality is: " 
+                  << this_locality 
+                  << ", timestep is: " << timestep
+                  << "\n";
 
       } // for time steps loop 
       
