@@ -17,7 +17,7 @@
 #include <hpx/hpx_main.hpp>
 // #include <hpx/parallel/algorithms/for_loop.hpp>
 // #include <hpx/async_local/dataflow.hpp>
-
+#include <chrono>
 
 #include <stdarg.h>
 #include <assert.h>
@@ -109,7 +109,7 @@ struct OpenMPApp : public App {
   OpenMPApp(int argc, char **argv);
   ~OpenMPApp();
   void execute_main_loop();
-  void execute_timestep(size_t idx, long t);
+  void execute_timestep(size_t idx, long t, hpx::execution::experimental::fork_join_executor &ex);
 private:
   void insert_task(task_args_t *args, int num_args, payload_t payload, size_t graph_id);
   void debug_printf(int verbose_level, const char *format, ...);
@@ -207,19 +207,25 @@ void OpenMPApp::execute_main_loop()
   
   Timer::time_start();
   
-  for (unsigned i = 0; i < graphs.size(); i++) {
+  hpx::execution::experimental::fork_join_executor exec;
+
+  hpx::for_loop(hpx::execution::seq,
+    int(0), graphs.size(), [&](int i) {
     const TaskGraph &g = graphs[i];
-    for (int y = 0; y < g.timesteps; y++) {
-      execute_timestep(i, y);
-    } 
-  }      
+    hpx::for_loop(hpx::execution::seq, // try doing that with a dataflow/taskblock
+    int(0), g.timesteps, [&](int y) {
+      execute_timestep(i, y, exec);
+    });
+
+  });    
 
   double elapsed = Timer::time_end();
   report_timing(elapsed);
 }
 
 
-void OpenMPApp::execute_timestep(size_t idx, long t)
+// int flag = 1;
+void OpenMPApp::execute_timestep(size_t idx, long t, hpx::execution::experimental::fork_join_executor &exec)
 {
   tile_t *mat = matrix[idx].data;
 
@@ -228,19 +234,17 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
   long width = g.width_at_timestep(t);
   long dset = g.dependence_set_at_timestep(t);
   int nb_fields = g.nb_fields;
-  
-  
+   
   // std::vector<hpx::future<void>> futures(width);
-
-<<<<<<< HEAD
-=======
-  payload_t payload;  // @Giannis: try moving that inside the for_loop
->>>>>>> Move values written in paralle, inside for_loop to avoid segfaults
+  std::size_t work = (1 * hpx::get_num_worker_threads());
+  hpx::execution::static_chunk_size cs(width/work);
+  // std::vector<double> timings(width);
 
   // for(int x = offset; x <= offset+width-1; x++) 
-  hpx::for_loop(hpx::execution::par, offset, offset+width, 
+  hpx::for_loop(hpx::execution::par.on(exec).with(cs), offset, offset+width, 
     [&](int x)
     {
+      // auto start = std::chrono::steady_clock::now();
 
       int num_args = 0;
       int ct = 0;  
@@ -315,8 +319,19 @@ void OpenMPApp::execute_timestep(size_t idx, long t)
       //   [&](hpx::task_block<>& tb) {
       //     tb.run([&] {task(tile_out, tiles, payload, num_args);} );
       // });
-    }
-  );
+      // auto finish = std::chrono::steady_clock::now();
+      // timings[x] = std::chrono::duration_cast<
+      // std::chrono::duration<double> >(finish - start).count();
+    });
+  // if(flag)
+  // {
+  //   for(int i = 0 ; i < timings.size() ; ++i)
+  //   {
+  //     std::cout << timings[i] << " ";
+  //   }
+  //   std::cout << std::endl;
+  //   flag = 0;
+  // }
 }
 
 void OpenMPApp::debug_printf(int verbose_level, const char *format, ...)

@@ -210,7 +210,7 @@ void OpenMPApp::execute_main_loop()
   hpx::for_loop(hpx::execution::par,
     int(0), graphs.size(), [&](int i) {
     const TaskGraph &g = graphs[i];
-    hpx::for_loop(hpx::execution::par, // try doing that with a dataflow/taskblock
+    hpx::for_loop(hpx::execution::seq, // try doing that with a dataflow/taskblock
     int(0), g.timesteps, [&](int y) {
       execute_timestep(i, y);
     });
