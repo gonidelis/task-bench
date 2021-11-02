@@ -216,11 +216,13 @@ int hpx_main(int argc, char *argv[])
           }  // send
 
           std::cout << "After send and before wait all futures, this_locality is: " << this_locality
+                    << ", timestep is: " << timestep << ","
                     << std::endl;
 
           hpx::wait_all(sets);
 
-          std::cout << "After wait all futures, this_locality is: " << this_locality
+          std::cout << "Done send, this_locality is: " << this_locality
+                    << ", timestep is: " << timestep << ","
                     << std::endl;
               
           // Receive 
@@ -242,15 +244,24 @@ int hpx_main(int argc, char *argv[])
                   point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
 
                   std::cout << "After receive, this_locality is: " << this_locality
-                    << std::endl;
+                            << ", timestep is: " << timestep << ","
+                            << std::endl;
 
                 }
                 point_n_inputs++;
               }
             }
           } // receive
+
+          std::cout << "Done receive, this_locality is: " << this_locality
+                            << ", timestep is: " << timestep << ","
+                            << std::endl;
           
         } // for loop for exchange
+
+        std::cout << "Done for loop for exchange, this_locality is: " << this_locality
+                            << ", timestep is: " << timestep << ","
+                            << std::endl;
 
         hpx::for_loop(
             policy, std::max(first_point, offset),
