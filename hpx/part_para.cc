@@ -67,8 +67,8 @@ int hpx_main(int argc, char *argv[])
 
   using executor = hpx::execution::experimental::fork_join_executor;
   executor exec(hpx::threads::thread_priority::default_);
-  hpx::execution::static_chunk_size fixed(1);
-  auto policy = hpx::execution::par.with(fixed).on(exec);
+  //hpx::execution::static_chunk_size fixed(1);
+  auto policy = hpx::execution::par(hpx::execution::task).on(exec);
 
   for (auto graph : app.graphs) {
     //long first_point = this_locality * graph.max_width / num_localities;
