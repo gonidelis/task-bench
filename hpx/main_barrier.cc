@@ -121,11 +121,14 @@ int hpx_main(int argc, char *argv[])
       char *scratch_ptr = scratch[graph.graph_index].data();
 
       std::vector<int> locality_by_point(graph.max_width);
+      std::vector<int> tag_bits_by_point(graph.max_width);
+
       for (int r = 0; r < num_localities; ++r) {
         long r_first_point = r * graph.max_width / num_localities;
         long r_last_point = (r + 1) * graph.max_width / num_localities - 1;
         for (long p = r_first_point; p <= r_last_point; ++p) {
           locality_by_point[p] = r;
+          tag_bits_by_point[p] = p - r_first_point;
         }
       }
 
@@ -199,7 +202,7 @@ int hpx_main(int argc, char *argv[])
         sets.clear();
         
         for (long point = first_point; point <= last_point; ++point) {
-          
+          sets.clear();
           long point_index = point - first_point;
 
           auto &point_inputs = inputs[point_index];
@@ -216,8 +219,12 @@ int hpx_main(int argc, char *argv[])
                 if (dep < offset || dep >= offset + width || (first_point <= dep && dep <= last_point)) {
                   continue;
                 }
+                int from = tag_bits_by_point[point];
+                int to = tag_bits_by_point[dep];
+                int tag = (from << 1) | to;
                 sets.push_back(hpx::collectives::set(comm, 
-                    hpx::collectives::that_site_arg(locality_by_point[dep]), point_output));
+                    hpx::collectives::that_site_arg(locality_by_point[dep]), point_output, 
+                    hpx::collectives::tag_arg(tag)));
               }
             }
           }  // send
@@ -225,8 +232,23 @@ int hpx_main(int argc, char *argv[])
           //std::cout << "After send and before wait all futures, this_locality is: " << this_locality
           //          << ", timestep is: " << timestep << "," << "iter is: " << iter
           //          << std::endl;
-
+          
+          //std::cout << "number in sets: " << sets.size() << ", loc: "
+          //          << this_locality
+          //          << ", timestep is: " << timestep << "," << "iter is: " << iter<< std::endl;
           hpx::wait_all(sets);
+
+          //std::cout << "After wait all, this_locality is: " << this_locality
+          //          << ", timestep is: " << timestep << "," << "iter is: " << iter
+          //          << std::endl;
+          
+          for (auto& f : sets) {
+              f.get();
+              //std::cout << "this sets size: " << sets.size() << ", this loc: "
+              //          << this_locality
+              //          << ", timestep is: " << timestep << "," << "iter is: " << iter
+              //          << ", done get \n";
+          }
 
           //std::cout << "Done send, this_locality is: " << this_locality
           //          << ", timestep is: " << timestep << "," << "iter is: " << iter
@@ -245,8 +267,13 @@ int hpx_main(int argc, char *argv[])
                   auto &output = outputs[dep - first_point];
                   point_inputs[point_n_inputs].assign(output.begin(), output.end());
                 } else {
+                  int from = tag_bits_by_point[dep];
+                  int to = tag_bits_by_point[point];
+                  int tag = (from << 1) | to;
+
                   auto got_msg = hpx::collectives::get<data_type>(comm, 
-                          hpx::collectives::that_site_arg(locality_by_point[dep]));
+                          hpx::collectives::that_site_arg(locality_by_point[dep]), 
+                          hpx::collectives::tag_arg(tag));
                   data_type rec_msg = got_msg.get();
                   point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
 
@@ -271,6 +298,7 @@ int hpx_main(int argc, char *argv[])
         //          << this_locality 
         //          << ", timestep is: " << timestep
         //          << "\n";
+        HPX_barrier.wait();
 
         hpx::for_loop(
             policy, std::max(first_point, offset),
@@ -307,7 +335,8 @@ int hpx_main(int argc, char *argv[])
         //          << this_locality 
         //          << ", timestep is: " << timestep
         //          << "\n";
-
+      //std::cout <<  "timestep is: " << timestep
+      //          << "\n";
       } // for time steps loop 
       
 
