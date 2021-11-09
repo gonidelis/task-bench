@@ -21,9 +21,12 @@ find_package(HPX REQUIRED)
 
 link_directories(${CMAKE_SOURCE_DIR}/../core)
 
-add_executable(part_para part_para.cc)
-target_link_libraries(part_para PUBLIC HPX::hpx HPX::wrap_main core_s)
+#add_executable(part_para part_para.cc)
+#target_link_libraries(part_para PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-add_executable(main main.cc)
-target_link_libraries(main PUBLIC HPX::hpx HPX::wrap_main core_s)
+#add_executable(main_tag main_tag.cc)
+#target_link_libraries(main_tag PUBLIC HPX::hpx HPX::wrap_main core_s)
+
+add_executable(main_barrier main_barrier.cc)
+target_link_libraries(main_barrier PUBLIC HPX::hpx HPX::wrap_main core_s)
 
