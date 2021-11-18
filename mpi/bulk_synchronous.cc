@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
   }
 
   double elapsed_time = 0.0;
-  for (int iter = 0; iter < 1; ++iter) {
+  for (int iter = 0; iter < 2; ++iter) {
     MPI_Barrier(MPI_COMM_WORLD);
 
     double start_time = MPI_Wtime();
