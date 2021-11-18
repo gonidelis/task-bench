@@ -17,6 +17,8 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <iostream>
+
 #include "core.h"
 
 #include "mpi.h"
@@ -43,7 +45,7 @@ int main(int argc, char *argv[])
   }
 
   double elapsed_time = 0.0;
-  for (int iter = 0; iter < 2; ++iter) {
+  for (int iter = 0; iter < 1; ++iter) {
     MPI_Barrier(MPI_COMM_WORLD);
 
     double start_time = MPI_Wtime();
@@ -191,6 +193,7 @@ int main(int argc, char *argv[])
                 MPI_Isend(point_output.data(), point_output.size(), MPI_BYTE,
                           rank_by_point[dep], tag, MPI_COMM_WORLD, &req);
                 requests.push_back(req);
+                std::cout << "it is sending, this rank " << rank << "\n";
               }
             }
           }

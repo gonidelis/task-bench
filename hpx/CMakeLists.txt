@@ -27,6 +27,8 @@ link_directories(${CMAKE_SOURCE_DIR}/../core)
 #add_executable(main_tag main_tag.cc)
 #target_link_libraries(main_tag PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-add_executable(main_barrier main_barrier.cc)
-target_link_libraries(main_barrier PUBLIC HPX::hpx HPX::wrap_main core_s)
+add_executable(main_bulk_sync main_bulk_sync.cc)
+target_link_libraries(main_bulk_sync PUBLIC HPX::hpx HPX::wrap_main core_s)
 
+add_executable(main_nonblock main_nonblock.cc)
+target_link_libraries(main_nonblock PUBLIC HPX::hpx HPX::wrap_main core_s)

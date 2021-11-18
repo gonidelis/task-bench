@@ -205,6 +205,7 @@ int hpx_main(int argc, char *argv[])
 
           // Send 
           if (point >= last_offset && point < last_offset + last_width) {
+            sets.clear();
             for (auto interval : point_rev_deps) {
               for (long dep = interval.first; dep <= interval.second; dep++) {
                 if (dep < offset || dep >= offset + width || (first_point <= dep && dep <= last_point)) {
@@ -260,11 +261,11 @@ int hpx_main(int argc, char *argv[])
           
         } // for loop for exchange
 
-        std::cerr << "++ Done for exchange data"
-                  << ", iter is: " << iter << ", this_locality is: " 
-                  << this_locality 
-                  << ", timestep is: " << timestep
-                  << "\n";
+        //std::cerr << "++ Done for exchange data"
+        //          << ", iter is: " << iter << ", this_locality is: " 
+        //          << this_locality 
+        //          << ", timestep is: " << timestep
+        //          << "\n";
 
         hpx::for_loop(
             policy, std::max(first_point, offset),
@@ -276,11 +277,11 @@ int hpx_main(int argc, char *argv[])
               auto &point_n_inputs = n_inputs[point_index];
               auto &point_output = outputs[point_index];
 
-              std::cerr << "===> Inside for_loop, before execute point"
-                  << ", iter is: " << iter << ", this_locality is: " 
-                  << this_locality 
-                  << ", timestep is: " << timestep
-                  << "\n";
+              //std::cerr << "===> Inside for_loop, before execute point"
+              //    << ", iter is: " << iter << ", this_locality is: " 
+              //    << this_locality 
+              //    << ", timestep is: " << timestep
+              //    << "\n";
 
               graph.execute_point(timestep, point, point_output.data(),
                                   point_output.size(), point_input_ptr.data(),
@@ -288,19 +289,19 @@ int hpx_main(int argc, char *argv[])
                                   scratch_ptr + scratch_bytes * point_index,
                                   scratch_bytes);
 
-              std::cerr << "<===Inside for_loop, after execute point"
-                  << ", iter is: " << iter << ", this_locality is: " 
-                  << this_locality 
-                  << ", timestep is: " << timestep
-                  << "\n";
+              //std::cerr << "<===Inside for_loop, after execute point"
+              //    << ", iter is: " << iter << ", this_locality is: " 
+              //    << this_locality 
+              //    << ", timestep is: " << timestep
+              //    << "\n";
 
             });  // hpx_for loop
           
-        std::cerr << "***Done for for_loop execute point"
-                  << ", iter is: " << iter << ", this_locality is: " 
-                  << this_locality 
-                  << ", timestep is: " << timestep
-                  << "\n";
+        //std::cerr << "***Done for for_loop execute point"
+        //          << ", iter is: " << iter << ", this_locality is: " 
+        //          << this_locality 
+        //          << ", timestep is: " << timestep
+        //          << "\n";
 
       } // for time steps loop 
       
