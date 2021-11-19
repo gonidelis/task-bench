@@ -22,8 +22,11 @@
 #include "hpx/modules/collectives.hpp"
 
 ///////////////////////////////////////////////////////////////////////////////
-constexpr char const* channel_communicator_name =
-  "hpx_comm_task";
+constexpr char const* channel_communicator_name = "hpx_comm_task";
+
+char const* const barrier_name = "hpx_barrier_task";
+
+///////////////////////////////////////////////////////////////////////////////
 
 namespace detail{
   std::tuple<long, long, long> tile(std::uint32_t loc_idx, long column, std::uint32_t numlocs)
@@ -67,19 +70,12 @@ int hpx_main(int argc, char *argv[])
   std::vector<hpx::future<void>> sets;
 
   hpx::execution::static_chunk_size fixed(1);
-
-  using executor = hpx::execution::experimental::fork_join_executor;
-  executor exec(hpx::threads::thread_priority::default_, hpx::threads::thread_stacksize::small_,
-                executor::loop_schedule::static_, std::chrono::microseconds(10));
   
-  auto policy = hpx::execution::par(hpx::execution::task).on(exec).with(fixed); // this will hang using 4 or 8 nodes.
+  auto policy = hpx::execution::par.with(fixed); 
 
-  //auto policy = hpx::execution::par.with(fixed);   // this will not hang
+  hpx::lcos::barrier HPX_barrier(barrier_name);
 
   for (auto graph : app.graphs) {
-    //long first_point = this_locality * graph.max_width / num_localities;
-    //long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
-    //long n_points = last_point - first_point + 1;
     long first_point, last_point, n_points;
     std::tie(first_point, last_point, n_points) = detail::tile(this_locality,graph.max_width, num_localities);
 
@@ -99,15 +95,13 @@ int hpx_main(int argc, char *argv[])
   double elapsed = 0.0;
 
   for (int iter = 0; iter < 2; ++iter) {
+    HPX_barrier.wait();
     
     hpx::chrono::high_resolution_timer timer;
     auto duration_lambda_execute = 0.0;  
 
     for (auto graph : app.graphs) {
    
-      //long first_point = this_locality * graph.max_width / num_localities;
-      //long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
-      //long n_points = last_point - first_point + 1;
       long first_point, last_point, n_points;
       std::tie(first_point, last_point, n_points) = detail::tile(this_locality,graph.max_width, num_localities);
 
@@ -196,7 +190,7 @@ int hpx_main(int argc, char *argv[])
         sets.clear();
         
         for (long point = first_point; point <= last_point; ++point) {
-          
+          sets.clear();
           long point_index = point - first_point;
 
           auto &point_inputs = inputs[point_index];
@@ -223,15 +217,11 @@ int hpx_main(int argc, char *argv[])
             }
           }  // send
 
-          //std::cout << "After send and before wait all futures, this_locality is: " << this_locality
-          //          << ", timestep is: " << timestep << "," << "iter is: " << iter
-          //          << std::endl;
-
           hpx::wait_all(sets);
-
-          //std::cout << "Done send, this_locality is: " << this_locality
-          //          << ", timestep is: " << timestep << "," << "iter is: " << iter
-          //          << std::endl;
+          
+          //for (auto& f : sets) {
+          //    f.get();
+          //}
               
           // Receive 
           point_n_inputs = 0;
@@ -249,15 +239,12 @@ int hpx_main(int argc, char *argv[])
                   int from = tag_bits_by_point[dep];
                   int to = tag_bits_by_point[point];
                   int tag = (from << 1) | to;
+
                   auto got_msg = hpx::collectives::get<data_type>(comm, 
                           hpx::collectives::that_site_arg(locality_by_point[dep]), 
                           hpx::collectives::tag_arg(tag));
                   data_type rec_msg = got_msg.get();
                   point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
-
-                  //std::cout << "After receive, this_locality is: " << this_locality
-                  //          << ", timestep is: " << timestep << "," << "iter is: " << iter
-                  //          << std::endl;
 
                 }
                 point_n_inputs++;
@@ -265,17 +252,10 @@ int hpx_main(int argc, char *argv[])
             }
           } // receive
 
-          //std::cout << "Done receive, this_locality is: " << this_locality
-          //                  << ", timestep is: " << timestep << "," << "iter is: " << iter
-          //                  << std::endl;
           
         } // for loop for exchange
 
-        std::cerr << "++ Done for exchange data"
-                  << ", iter is: " << iter << ", this_locality is: " 
-                  << this_locality 
-                  << ", timestep is: " << timestep
-                  << "\n";
+        HPX_barrier.wait();
 
         hpx::for_loop(
             policy, std::max(first_point, offset),
@@ -287,42 +267,21 @@ int hpx_main(int argc, char *argv[])
               auto &point_n_inputs = n_inputs[point_index];
               auto &point_output = outputs[point_index];
 
-              std::cerr << "===> Inside for_loop, before execute point"
-                  << ", iter is: " << iter << ", this_locality is: " 
-                  << this_locality 
-                  << ", timestep is: " << timestep
-                  << "\n";
-
               graph.execute_point(timestep, point, point_output.data(),
                                   point_output.size(), point_input_ptr.data(),
                                   point_input_bytes.data(), point_n_inputs,
                                   scratch_ptr + scratch_bytes * point_index,
                                   scratch_bytes);
 
-              std::cerr << "<===Inside for_loop, after execute point"
-                  << ", iter is: " << iter << ", this_locality is: " 
-                  << this_locality 
-                  << ", timestep is: " << timestep
-                  << "\n";
 
             });  // hpx_for loop
           
-        std::cerr << "***Done for for_loop execute point"
-                  << ", iter is: " << iter << ", this_locality is: " 
-                  << this_locality 
-                  << ", timestep is: " << timestep
-                  << "\n";
-
       } // for time steps loop 
       
 
     } // for graphs loop
+    HPX_barrier.wait();
     elapsed = timer.elapsed(); 
-
-    //if (iter == 1) {
-    //  std::cout << "Time by executing lambda function is: "
-    //            << duration_lambda_execute << " nanoseconds" << std::endl;
-    //}
 
   } // for 2-time iter
 

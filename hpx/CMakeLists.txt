@@ -32,3 +32,6 @@ target_link_libraries(main_bulk_sync PUBLIC HPX::hpx HPX::wrap_main core_s)
 
 add_executable(main_nonblock main_nonblock.cc)
 target_link_libraries(main_nonblock PUBLIC HPX::hpx HPX::wrap_main core_s)
+
+add_executable(main_par main_par.cc)
+target_link_libraries(main_par PUBLIC HPX::hpx HPX::wrap_main core_s)
