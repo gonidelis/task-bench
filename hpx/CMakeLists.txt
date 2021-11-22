@@ -21,17 +21,18 @@ find_package(HPX REQUIRED)
 
 link_directories(${CMAKE_SOURCE_DIR}/../core)
 
-#add_executable(part_para part_para.cc)
-#target_link_libraries(part_para PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-#add_executable(main_tag main_tag.cc)
-#target_link_libraries(main_tag PUBLIC HPX::hpx HPX::wrap_main core_s)
+#add_executable(main_bulk_sync main_bulk_sync.cc)
+#target_link_libraries(main_bulk_sync PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-add_executable(main_bulk_sync main_bulk_sync.cc)
-target_link_libraries(main_bulk_sync PUBLIC HPX::hpx HPX::wrap_main core_s)
+#add_executable(main_nonblock main_nonblock.cc)
+#target_link_libraries(main_nonblock PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-add_executable(main_nonblock main_nonblock.cc)
-target_link_libraries(main_nonblock PUBLIC HPX::hpx HPX::wrap_main core_s)
+#add_executable(main_par main_par.cc)
+#target_link_libraries(main_par PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-add_executable(main_par main_par.cc)
-target_link_libraries(main_par PUBLIC HPX::hpx HPX::wrap_main core_s)
+add_executable(main_mpi_exec main_mpi_exec.cc)
+target_link_libraries(main_mpi_exec PUBLIC HPX::hpx HPX::wrap_main core_s)
+
+add_executable(test_2loc test_2loc.cc)
+target_link_libraries(test_2loc PUBLIC HPX::hpx HPX::wrap_main core_s)
