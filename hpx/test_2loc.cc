@@ -53,24 +53,30 @@ int hpx_main(hpx::program_options::variables_map& vm)
     std::vector<int> msg_in = {0, 0};
     int msg_to_send = msg_out[rank];
     int msg_to_rec = msg_in[rank];
+    std::atomic<std::uint64_t> counter(2);
     std::cout << "Before, this rank: " << rank << ", msg to send: " << msg_to_send << "\n";
 
     int tag = 345;
 
     hpx::future<int> f_send = hpx::async(
-                limexec, MPI_Isend, &msg_to_send, 1, MPI_INT, next_rank, tag);
-    
-    //f_send.get();
+            limexec, MPI_Isend, &msg_to_send, 1, MPI_INT, next_rank, tag);
+    f_send.then([=, &exec, &msg_to_rec, &counter](auto&&) {
+                    std::cout << "Done send \n";
+                    --counter;
+                    hpx::future<int> f_recv = hpx::async(
+                        exec, MPI_Irecv, &msg_to_rec, 1, MPI_INT, next_rank, tag);
+                    f_recv.then([=, &counter](auto&&) {
+                        std::cout << "Done rec \n";
+                        --counter;
+                    });
+                });
 
-    hpx::future<int> f_recv = hpx::async(
-                limexec, MPI_Irecv, &msg_to_rec, 1, MPI_INT, next_rank, tag);
-
-    //f_recv.get();
-
-    hpx::wait_all(f_send, f_recv);
+    hpx::mpi::experimental::wait([&]() { 
+            std::cout << "wait, rank: " << rank << ", counter: " << counter << "\n"; 
+            return counter != 0; 
+    });
 
     std::cout << "After, this rank: " << rank << ", msg to rev: " << msg_to_rec << "\n";
-    
     
     return hpx::local::finalize();
 }
