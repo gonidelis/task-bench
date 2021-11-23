@@ -60,22 +60,18 @@ int hpx_main(int argc, char *argv[])
   if (rank == 0) app.display();
 
   std::vector<std::vector<char> > scratch;
-  
-  //// create an executor with high priority
-  //hpx::execution::parallel_executor high_priority_executor(
-  //    hpx::this_thread::get_pool(), hpx::threads::thread_priority::critical);
-  //hpx::execution::parallel_executor mpi_executor = high_priority_executor;
 
-  hpx::execution::static_chunk_size fixed(1);
-
+  hpx::mpi::experimental::enable_user_polling enable_polling;
   hpx::mpi::experimental::executor exec(MPI_COMM_WORLD);
-
-  //hpx::execution::experimental::limiting_executor<
-  //    hpx::mpi::experimental::executor>
-  //    limexec(exec, 32, 64, true);
-
-  //auto policy = hpx::execution::par.with(fixed).on(exec); 
-
+  hpx::execution::experimental::limiting_executor<
+            hpx::mpi::experimental::executor>
+            limexec(exec, 32, 64, true);
+  
+  using executor = hpx::execution::experimental::fork_join_executor;
+  executor exec_forloop(hpx::threads::thread_priority::default_, hpx::threads::thread_stacksize::small_,
+                executor::loop_schedule::static_, std::chrono::microseconds(10));
+  hpx::execution::static_chunk_size fixed(1);
+  auto policy_forloop = hpx::execution::par.on(exec_forloop).with(fixed); 
 
   std::vector<hpx::future<int>> f_send;
   std::vector<hpx::future<int>> f_recv;
@@ -91,7 +87,7 @@ int hpx_main(int argc, char *argv[])
 
     char *scratch_ptr = scratch.back().data();
 
-    hpx::for_loop(hpx::execution::par, first_point, last_point + 1,
+    hpx::for_loop(policy_forloop, first_point, last_point + 1,
       [&](long point)
       {
         long point_index = point - first_point;
@@ -183,7 +179,6 @@ int hpx_main(int argc, char *argv[])
     
       
       for (long timestep = 0; timestep < graph.timesteps; ++timestep) {
-        std::cout << "timestep: " << timestep << "\n";
         long offset = graph.offset_at_timestep(timestep);
         long width = graph.width_at_timestep(timestep);
 
@@ -196,10 +191,10 @@ int hpx_main(int argc, char *argv[])
 
         f_send.clear();
         f_recv.clear();
+        std::atomic<std::uint64_t> counter(0);
+        std::atomic<std::uint64_t> k(0);
         
         for (long point = first_point; point <= last_point; ++point) {
-          f_send.clear();
-          f_recv.clear();
           long point_index = point - first_point;
 
           auto &point_inputs = inputs[point_index];
@@ -219,18 +214,20 @@ int hpx_main(int argc, char *argv[])
                 int from = tag_bits_by_point[point];
                 int to = tag_bits_by_point[dep];
                 int tag = (from << 1) | to;
-                
-                f_send.push_back(hpx::async(exec, MPI_Isend, 
+
+                hpx::future<int> send_req = hpx::async(limexec, MPI_Isend, 
                     point_output.data(), point_output.size(), MPI_BYTE, 
-                    locality_by_point[dep], tag));
-                std::cout << "send size: " << f_send.size() << std::endl;
-                
+                    locality_by_point[dep], tag);
+                k += 1;
+                send_req.then([=, &counter](auto&&) {
+                    ++counter;
+                });
                 
               }
             }
           }  // send
 
-          //hpx::wait_all(f_send);
+          k += f_send.size();
 
           // Receive 
           point_n_inputs = 0;
@@ -248,32 +245,30 @@ int hpx_main(int argc, char *argv[])
                   int from = tag_bits_by_point[dep];
                   int to = tag_bits_by_point[point];
                   int tag = (from << 1) | to;
-                  f_recv.push_back(hpx::async(exec, MPI_Irecv,
-                    point_inputs[point_n_inputs].data(), point_inputs[point_n_inputs].size(), 
-                    MPI_BYTE, locality_by_point[dep], tag));
-                  std::cout << "rec size: " << f_send.size() << std::endl;
+
+                  hpx::future<int> recv_req = hpx::async(limexec, MPI_Irecv,
+                      point_inputs[point_n_inputs].data(), point_inputs[point_n_inputs].size(), 
+                      MPI_BYTE, locality_by_point[dep], tag);
+                  k += 1;
+                  recv_req.then([=, &counter](auto&&) {
+                      ++counter;
+                  });
                 }
                 point_n_inputs++;
               }
             }
           } // receive
 
-          //hpx::wait_all(f_recv);
-              
-
-          hpx::wait_all(f_send, f_recv);
-          //hpx::wait_all(f_send);
-          
-          //for (auto& f : f_send) {
-          //    f.get();
-          //}
+          hpx::mpi::experimental::wait([&]() { 
+            return counter != k; 
+          });
 
         } // for loop for exchange
         
         HPX_barrier.wait();
 
         hpx::for_loop(
-            hpx::execution::par, std::max(first_point, offset),
+            policy_forloop, std::max(first_point, offset),
             std::min(last_point, offset + width - 1) + 1, [&](long point) {
               long point_index = point - first_point;
 

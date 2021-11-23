@@ -17,8 +17,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include <iostream>
-
 #include "core.h"
 
 #include "mpi.h"
@@ -193,7 +191,6 @@ int main(int argc, char *argv[])
                 MPI_Isend(point_output.data(), point_output.size(), MPI_BYTE,
                           rank_by_point[dep], tag, MPI_COMM_WORLD, &req);
                 requests.push_back(req);
-                std::cout << "it is sending, this rank " << rank << "\n";
               }
             }
           }

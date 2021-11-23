@@ -34,11 +34,9 @@ link_directories(${CMAKE_SOURCE_DIR}/../core)
 add_executable(main_mpi_exec main_mpi_exec.cc)
 target_link_libraries(main_mpi_exec PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-add_executable(test_2loc test_2loc.cc)
-target_link_libraries(test_2loc PUBLIC HPX::hpx HPX::wrap_main core_s)
+#add_executable(test_2loc test_2loc.cc)
+#target_link_libraries(test_2loc PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-add_executable(test test.cc)
-target_link_libraries(test PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-add_executable(test_ring test_ring.cc)
-target_link_libraries(test_ring PUBLIC HPX::hpx HPX::wrap_main core_s)
+#add_executable(test_ring test_ring.cc)
+#target_link_libraries(test_ring PUBLIC HPX::hpx HPX::wrap_main core_s)
