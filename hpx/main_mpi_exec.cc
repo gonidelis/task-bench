@@ -22,29 +22,7 @@
 #include "mpi.h"
 
 ///////////////////////////////////////////////////////////////////////////////
-char const* const barrier_name = "hpx_barrier_task";
-
-///////////////////////////////////////////////////////////////////////////////
-
-namespace detail{
-  std::tuple<long, long, long> tile(int loc_idx, long column, int numlocs)
-  {
-    long first_point;
-    long n_points = column / numlocs;
-    long rest = column % numlocs;
-    if (loc_idx < rest){
-      n_points ++;
-    }
-
-    if (rest != 0 && loc_idx >= rest){
-      first_point = (n_points + 1) * rest + n_points * (loc_idx - rest);
-    } else {
-      first_point = n_points * loc_idx;
-    }
-    long last_point = first_point + n_points - 1;
-    return std::make_tuple(first_point, last_point, n_points);
-  }
-} // namespace detail
+//char const* const barrier_name = "hpx_barrier_task";
 
 ///////////////////////////////////////////////////////////////////////////////
 int hpx_main(int argc, char *argv[]) 
@@ -62,16 +40,16 @@ int hpx_main(int argc, char *argv[])
   hpx::mpi::experimental::enable_user_polling enable_polling;
   hpx::mpi::experimental::executor mpi_exec(MPI_COMM_WORLD);
 
-  hpx::execution::experimental::fork_join_executor exec_forloop(
+  hpx::execution::experimental::fork_join_executor exec_fork_join(
       hpx::threads::thread_priority::default_,
       hpx::threads::thread_stacksize::small_,
       hpx::execution::experimental::fork_join_executor::loop_schedule::static_,
       std::chrono::microseconds(10));
   hpx::execution::static_chunk_size fixed(1);
-  auto policy_forloop = hpx::execution::par.on(exec_forloop).with(fixed); 
-  auto policy_2 = hpx::execution::par.with(fixed); 
+  auto policy_fork_join = hpx::execution::par.on(exec_fork_join).with(fixed); 
+  auto policy_par = hpx::execution::par.with(fixed); 
 
-  hpx::lcos::barrier HPX_barrier(barrier_name);
+  //hpx::lcos::barrier HPX_barrier(barrier_name);
 
   std::vector<hpx::future<int>> requests;
 
@@ -88,7 +66,7 @@ int hpx_main(int argc, char *argv[])
 
     char *scratch_ptr = scratch.back().data();
 
-    hpx::for_loop(policy_2, first_point, last_point + 1,
+    hpx::for_loop(policy_par, first_point, last_point + 1,
       [&](long point)
       {
         long point_index = point - first_point;
@@ -99,9 +77,9 @@ int hpx_main(int argc, char *argv[])
   double elapsed = 0.0;
 
   for (int iter = 0; iter < 1; ++iter) {
-    std::cerr << "this iter \n";
-    HPX_barrier.wait();
-    std::cerr << "this iter after barrier \n";
+    //std::cerr << "this iter \n";
+    //HPX_barrier.wait();
+    //std::cerr << "this iter after barrier \n";
     
     hpx::chrono::high_resolution_timer timer;
     auto duration_lambda_execute = 0.0;  
@@ -186,7 +164,7 @@ int hpx_main(int argc, char *argv[])
     
       
       for (long timestep = 0; timestep < graph.timesteps; ++timestep) {
-        std::cout << "timestep: " << timestep << "\n";
+        //std::cout << "timestep: " << timestep << "\n";
         long offset = graph.offset_at_timestep(timestep);
         long width = graph.width_at_timestep(timestep);
 
@@ -259,18 +237,18 @@ int hpx_main(int argc, char *argv[])
           //std::cout << "Done rec \n";
         
         } // for loop for exchange
-        std::cerr << "timestep: " << timestep << ", Done change data \n";
+        //std::cerr << "timestep: " << timestep << ", Done change data \n";
         hpx::wait_all(requests);
-        std::cerr << "timestep: " << timestep << ", requests size: " << requests.size() << "\n";
-        for (auto& f : requests) {
-            //std::cout << "f \n";
-            f.get();
-        }
+        //std::cerr << "timestep: " << timestep << ", requests size: " << requests.size() << "\n";
+        //for (auto& f : requests) {
+        //    //std::cout << "f \n";
+        //    f.get();
+        //}
         
-        HPX_barrier.wait();
-        std::cerr << "timestep: " << timestep << ", after this barrier \n";
+        //HPX_barrier.wait();
+        //std::cerr << "timestep: " << timestep << ", after this barrier \n";
         hpx::for_loop(
-            policy_2, std::max(first_point, offset),
+            policy_par, std::max(first_point, offset),
             std::min(last_point, offset + width - 1) + 1, [&](long point) {
               long point_index = point - first_point;
 
@@ -287,13 +265,13 @@ int hpx_main(int argc, char *argv[])
 
 
             });  // hpx_for loop
-        std::cerr << "timestep: " << timestep << ", Done execute for_loop \n";
+        //std::cerr << "timestep: " << timestep << ", Done execute for_loop \n";
           
       } // for time steps loop 
       
 
     } // for graphs loop
-    HPX_barrier.wait();
+    //HPX_barrier.wait();
     elapsed = timer.elapsed(); 
 
   } // for 2-time iter
