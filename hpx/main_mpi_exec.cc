@@ -99,9 +99,9 @@ int hpx_main(int argc, char *argv[])
   double elapsed = 0.0;
 
   for (int iter = 0; iter < 1; ++iter) {
-    std::cout << "this iter \n";
+    std::cerr << "this iter \n";
     HPX_barrier.wait();
-    std::cout << "this iter after barrier \n";
+    std::cerr << "this iter after barrier \n";
     
     hpx::chrono::high_resolution_timer timer;
     auto duration_lambda_execute = 0.0;  
@@ -259,16 +259,16 @@ int hpx_main(int argc, char *argv[])
           //std::cout << "Done rec \n";
         
         } // for loop for exchange
-        std::cout << "Done exchange \n";
+        std::cerr << "Done change data \n";
         hpx::wait_all(requests);
-        std::cout << "requests size: " << requests.size() << "\n";
+        std::cerr << "requests size: " << requests.size() << "\n";
         for (auto& f : requests) {
             //std::cout << "f \n";
             f.get();
         }
         
         HPX_barrier.wait();
-        std::cout <<  "after this barrier \n";
+        std::cerr <<  "after this barrier \n";
         hpx::for_loop(
             policy_2, std::max(first_point, offset),
             std::min(last_point, offset + width - 1) + 1, [&](long point) {
@@ -287,7 +287,7 @@ int hpx_main(int argc, char *argv[])
 
 
             });  // hpx_for loop
-        std::cout <<  "Done execute for_loop \n";
+        std::cerr <<  "Done execute for_loop \n";
           
       } // for time steps loop 
       
