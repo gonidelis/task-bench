@@ -37,46 +37,62 @@ int hpx_main(hpx::program_options::variables_map& vm)
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    hpx::mpi::experimental::executor exec(MPI_COMM_WORLD);
+    {
+        hpx::mpi::experimental::enable_user_polling enable_polling;
 
-    hpx::execution::experimental::limiting_executor<
+        hpx::mpi::experimental::executor exec(MPI_COMM_WORLD);
+
+        hpx::execution::experimental::limiting_executor<
             hpx::mpi::experimental::executor>
             limexec(exec, 32, 64, true);
+        
+        int next_rank = (rank + 1) % size;
 
-    int next_rank = (rank + 1) % size;
-    // rank 0 send 11 to rank 1; 
-    // rank 1 send 22 to rank 0;
-    // expected received info is:
-    // rank 0 receive 22 and rank 1 receive 11
+        int msg = (rank == 0)? 1: -1;
 
-    std::vector<int> msg_out = {11, 22};
-    std::vector<int> msg_in = {0, 0};
-    int msg_to_send = msg_out[rank];
-    int msg_to_rec = msg_in[rank];
-    std::atomic<std::uint64_t> counter(2);
-    std::cout << "Before, this rank: " << rank << ", msg to send: " << msg_to_send << "\n";
+        std::atomic<std::uint64_t> counter(2);
+        int tag = 345;
 
-    int tag = 345;
+        // pre-post a receive    
+        hpx::future<int> f_recv =
+            hpx::async(limexec, MPI_Irecv, &msg, 1, MPI_INT, next_rank, tag);
 
-    hpx::future<int> f_send = hpx::async(
-            limexec, MPI_Isend, &msg_to_send, 1, MPI_INT, next_rank, tag);
-    f_send.then([=, &exec, &msg_to_rec, &counter](auto&&) {
-                    std::cout << "Done send \n";
-                    --counter;
-                    hpx::future<int> f_recv = hpx::async(
-                        exec, MPI_Irecv, &msg_to_rec, 1, MPI_INT, next_rank, tag);
-                    f_recv.then([=, &counter](auto&&) {
-                        std::cout << "Done rec \n";
-                        --counter;
-                    });
-                });
+        // when recv completes
+        f_recv.then([=, &exec, &msg, &counter](auto&&) {
+          if (rank > 0) {
+              std::cout << "rank 1 Done send \n";
+              ++msg;
+              --counter;
+              hpx::future<int> f_send =
+                  hpx::async(exec, MPI_Isend, &msg, 1, MPI_INT, next_rank, tag);
+              f_send.then([=, &counter](auto&&) {
+                std::cout << "Rank 0 Done rec \n";
+                --counter;
+              });
+          }
+          else {
+              std::cout << "rank 0 Done send \n";
+              --counter;
+          }
+        });
 
-    hpx::mpi::experimental::wait([&]() { 
-            std::cout << "wait, rank: " << rank << ", counter: " << counter << "\n"; 
+        if (rank == 0) {
+          hpx::future<int> f_send = hpx::async
+            (limexec, MPI_Isend, &msg, 1, MPI_INT, next_rank, tag);
+          f_send.then([=, &counter](auto&&) {
+            std::cout << "Done rank 0 send \n";
+            --counter;
+          });
+        }
+
+        hpx::mpi::experimental::wait([&]() { 
+            //std::cout << "wait, rank: " << rank << ", counter: " << counter << "\n"; 
             return counter != 0; 
-    });
+        });
 
-    std::cout << "After, this rank: " << rank << ", msg to rev: " << msg_to_rec << "\n";
+        std::cout << "msg: " << msg << "\n";
+
+    }
     
     return hpx::local::finalize();
 }
