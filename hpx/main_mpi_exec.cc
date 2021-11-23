@@ -246,6 +246,11 @@ int hpx_main(int argc, char *argv[])
         } // for loop for exchange
 
         hpx::wait_all(requests);
+        std::cout << "requests size: " << requests.size() << "\n";
+        for (auto& f : requests) {
+            std::cout << "f \n";
+            f.get();
+        }
         
         HPX_barrier.wait();
 
