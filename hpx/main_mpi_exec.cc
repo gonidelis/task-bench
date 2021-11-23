@@ -73,8 +73,6 @@ int hpx_main(int argc, char *argv[])
   hpx::execution::static_chunk_size fixed(1);
   auto policy_forloop = hpx::execution::par.on(exec_forloop).with(fixed); 
 
-  std::vector<hpx::future<int>> f_send;
-  std::vector<hpx::future<int>> f_recv;
 
   hpx::lcos::barrier HPX_barrier(barrier_name);
 
@@ -189,8 +187,6 @@ int hpx_main(int argc, char *argv[])
         auto &deps = dependencies[dset];
         auto &rev_deps = reverse_dependencies[dset];
 
-        f_send.clear();
-        f_recv.clear();
         std::atomic<std::uint64_t> counter(0);
         std::atomic<std::uint64_t> k(0);
         
@@ -227,7 +223,6 @@ int hpx_main(int argc, char *argv[])
             }
           }  // send
 
-          k += f_send.size();
 
           // Receive 
           point_n_inputs = 0;
