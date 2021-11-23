@@ -223,9 +223,9 @@ int hpx_main(int argc, char *argv[])
 
           hpx::wait_all(sets);
           
-          for (auto& f : sets) {
-              f.get();
-          }
+          //for (auto& f : sets) {
+          //    f.get();
+          //}
               
           // Receive 
           point_n_inputs = 0;
@@ -295,7 +295,7 @@ int hpx_main(int argc, char *argv[])
     app.report_timing(elapsed);
   }
 
-  return hpx::finalize();;
+  return hpx::finalize();
 }
 ///////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])

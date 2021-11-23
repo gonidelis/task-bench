@@ -291,7 +291,7 @@ int hpx_main(int argc, char *argv[])
     app.report_timing(elapsed);
   }
 
-  return hpx::finalize();;
+  return hpx::finalize();
 }
 ///////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])

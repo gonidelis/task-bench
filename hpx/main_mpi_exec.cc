@@ -16,6 +16,7 @@
 
 #include "hpx/hpx.hpp"
 #include "hpx/hpx_init.hpp"
+#include "hpx/local/init.hpp"
 #include "hpx/local/chrono.hpp"
 #include "hpx/local/execution.hpp"
 #include "hpx/local/future.hpp"
@@ -62,17 +63,14 @@ int hpx_main(int argc, char *argv[])
   std::vector<std::vector<char> > scratch;
 
   hpx::mpi::experimental::enable_user_polling enable_polling;
-  hpx::mpi::experimental::executor exec(MPI_COMM_WORLD);
-  hpx::execution::experimental::limiting_executor<
-            hpx::mpi::experimental::executor>
-            limexec(exec, 32, 64, true);
-  
-  using executor = hpx::execution::experimental::fork_join_executor;
-  executor exec_forloop(hpx::threads::thread_priority::default_, hpx::threads::thread_stacksize::small_,
-                executor::loop_schedule::static_, std::chrono::microseconds(10));
+  hpx::mpi::experimental::executor mpi_exec(MPI_COMM_WORLD);
+
+  hpx::execution::experimental::fork_join_executor exec_forloop(
+      hpx::threads::thread_priority::default_,
+      hpx::threads::thread_stacksize::small_, executor::loop_schedule::static_,
+      std::chrono::microseconds(10));
   hpx::execution::static_chunk_size fixed(1);
   auto policy_forloop = hpx::execution::par.on(exec_forloop).with(fixed); 
-
 
   hpx::lcos::barrier HPX_barrier(barrier_name);
 
@@ -96,6 +94,8 @@ int hpx_main(int argc, char *argv[])
   double elapsed = 0.0;
 
   for (int iter = 0; iter < 2; ++iter) {
+    std::vector<hpx::future<int>> requests;
+    
     HPX_barrier.wait();
     
     hpx::chrono::high_resolution_timer timer;
@@ -187,9 +187,8 @@ int hpx_main(int argc, char *argv[])
         auto &deps = dependencies[dset];
         auto &rev_deps = reverse_dependencies[dset];
 
-        std::atomic<std::uint64_t> counter(0);
-        std::atomic<std::uint64_t> k(0);
-        
+        requests.clear();
+
         for (long point = first_point; point <= last_point; ++point) {
           long point_index = point - first_point;
 
@@ -211,13 +210,9 @@ int hpx_main(int argc, char *argv[])
                 int to = tag_bits_by_point[dep];
                 int tag = (from << 1) | to;
 
-                hpx::future<int> send_req = hpx::async(limexec, MPI_Isend, 
+                requests.push_back(hpx::async(mpi_exec, MPI_Isend, 
                     point_output.data(), point_output.size(), MPI_BYTE, 
-                    locality_by_point[dep], tag);
-                k += 1;
-                send_req.then([=, &counter](auto&&) {
-                    ++counter;
-                });
+                    locality_by_point[dep], tag));
                 
               }
             }
@@ -241,24 +236,19 @@ int hpx_main(int argc, char *argv[])
                   int to = tag_bits_by_point[point];
                   int tag = (from << 1) | to;
 
-                  hpx::future<int> recv_req = hpx::async(limexec, MPI_Irecv,
-                      point_inputs[point_n_inputs].data(), point_inputs[point_n_inputs].size(), 
-                      MPI_BYTE, locality_by_point[dep], tag);
-                  k += 1;
-                  recv_req.then([=, &counter](auto&&) {
-                      ++counter;
-                  });
+                  requests.push_back(hpx::async(
+                      mpi_exec, MPI_Irecv, point_inputs[point_n_inputs].data(),
+                      point_inputs[point_n_inputs].size(), MPI_BYTE,
+                      locality_by_point[dep], tag));
                 }
                 point_n_inputs++;
               }
             }
           } // receive
 
-          hpx::mpi::experimental::wait([&]() { 
-            return counter != k; 
-          });
-
         } // for loop for exchange
+
+        hpx::wait_all(requests);
         
         HPX_barrier.wait();
 
@@ -296,7 +286,7 @@ int hpx_main(int argc, char *argv[])
     app.report_timing(elapsed);
   }
 
-  return hpx::local::finalize();
+  return hpx::finalize();
 }
 ///////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])
@@ -308,24 +298,10 @@ int main(int argc, char* argv[])
         "--hpx:ini=hpx.commandline.aliasing!=0"
     };
 
-    // Init MPI 
-    int provided = MPI_THREAD_MULTIPLE;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
-    if (provided != MPI_THREAD_MULTIPLE)
-    {
-        std::cout << "Provided MPI is not : MPI_THREAD_MULTIPLE " << provided
-                  << std::endl;
-    }
-
     // Initialize and run HPX
     hpx::init_params init_args;
     init_args.cfg = cfg;  
-
-    auto result = hpx::init(argc, argv, init_args);
-
-    // Finalize MPI
-    MPI_Finalize();
     
-    return result;
+    return hpx::init(argc, argv, init_args);
 }
 

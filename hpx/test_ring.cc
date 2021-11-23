@@ -48,7 +48,6 @@ int hpx_main(hpx::program_options::variables_map& vm)
         
         int next_rank = (rank + 1) % size;
 
-
         int msg_to_send = rank + 2;
         int msg_to_recv = -1;
 
@@ -58,21 +57,19 @@ int hpx_main(hpx::program_options::variables_map& vm)
 
         hpx::future<int> f_send =
             hpx::async(limexec, MPI_Isend, &msg_to_send, 1, MPI_INT, next_rank, tag);
-        f_send.then([=, &counter](auto&&) {
+        f_send.then([&counter](auto&&) {
             --counter;
         });
-
-        // pre-post a receive    
+  
         hpx::future<int> f_recv =
             hpx::async(limexec, MPI_Irecv, &msg_to_recv, 1, MPI_INT, next_rank, tag);
         // when recv completes
-        f_recv.then([=, &counter](auto&&) {
+        f_recv.then([&counter](auto&&) {
             --counter;
         });
 
 
         hpx::mpi::experimental::wait([&]() { 
-            //std::cout << "wait, rank: " << rank << ", counter: " << counter << "\n"; 
             return counter != 0; 
         });
 

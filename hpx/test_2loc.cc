@@ -59,34 +59,13 @@ int hpx_main(hpx::program_options::variables_map& vm)
         int tag = 345;
         std::cout << "rank: " << rank << ", send msg: " << msg_to_send << "\n";
 
-        hpx::future<int> f_send =
-            hpx::async(limexec, MPI_Isend, &msg_to_send, 1, MPI_INT, next_rank, tag);
-        req.push_back(f_send);
-        //k += 1;
-        f_send.then([=, &counter](auto&&) {
-            ++counter;
-        });
+        req.push_back(
+            hpx::async(limexec, MPI_Isend, &msg_to_send, 1, MPI_INT, next_rank, tag));
 
-        // pre-post a receive    
-        hpx::future<int> f_recv =
-            hpx::async(limexec, MPI_Irecv, &msg_to_recv, 1, MPI_INT, next_rank, tag);
-        req.push_back(f_recv);
-        
-        k += req.size();
-        // when recv completes
-        f_recv.then([=, &counter](auto&&) {
-            ++counter;
-        });
+        req.push_back(
+            hpx::async(limexec, MPI_Irecv, &msg_to_recv, 1, MPI_INT, next_rank, tag));
 
         hpx::wait_all(req);
-
-
-
-
-        hpx::mpi::experimental::wait([&]() { 
-            //std::cout << "wait, rank: " << rank << ", counter: " << counter << "\n"; 
-            return counter != k; 
-        });
 
         std::cout << "rank: " << rank << ", recv msg: " << msg_to_recv << "\n";
 
