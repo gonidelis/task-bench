@@ -6,7 +6,8 @@
 
 #include <hpx/local/execution.hpp>
 #include <hpx/local/future.hpp>
-#include <hpx/local/init.hpp>
+//#include <hpx/local/init.hpp>
+#include "hpx/hpx_init.hpp"
 #include <hpx/modules/async_mpi.hpp>
 #include <hpx/modules/testing.hpp>
 #include <hpx/program_options.hpp>
@@ -71,7 +72,7 @@ int hpx_main(hpx::program_options::variables_map& vm)
 
     //}
     
-    return hpx::local::finalize();
+    return hpx::finalize();
 }
 
 // the normal int main function that is called at startup and runs on an OS
@@ -94,13 +95,13 @@ int main(int argc, char* argv[])
 
 
     // Initialize and run HPX.
-    hpx::local::init_params init_args;
+    hpx::init_params init_args;
     init_args.cfg = cfg;
 
-    auto result = hpx::local::init(hpx_main, argc, argv, init_args);
+    auto result = hpx::init(argc, argv, init_args);
 
     // Finalize MPI
     MPI_Finalize();
 
-    return result || hpx::util::report_errors();
+    return result;
 }

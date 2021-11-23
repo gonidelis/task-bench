@@ -14,14 +14,10 @@
 #include <string> 
 #include <tuple>
 
-#include "hpx/hpx.hpp"
 #include "hpx/hpx_init.hpp"
-#include "hpx/local/init.hpp"
+#include "hpx/hpx.hpp"
 #include "hpx/local/chrono.hpp"
-#include "hpx/local/execution.hpp"
-#include "hpx/local/future.hpp"
 #include "hpx/modules/async_mpi.hpp"
-
 
 #include "mpi.h"
 
@@ -65,10 +61,11 @@ int hpx_main(int argc, char *argv[])
   hpx::mpi::experimental::enable_user_polling enable_polling;
   hpx::mpi::experimental::executor mpi_exec(MPI_COMM_WORLD);
 
-  hpx::execution::experimental::fork_join_executor exec_forloop(
-      hpx::threads::thread_priority::default_,
-      hpx::threads::thread_stacksize::small_, executor::loop_schedule::static_,
-      std::chrono::microseconds(10));
+  using executor = hpx::execution::experimental::fork_join_executor;
+  executor exec_forloop(hpx::threads::thread_priority::default_,
+                hpx::threads::thread_stacksize::small_,
+                executor::loop_schedule::static_,
+                std::chrono::microseconds(10));
   hpx::execution::static_chunk_size fixed(1);
   auto policy_forloop = hpx::execution::par.on(exec_forloop).with(fixed); 
 
@@ -298,10 +295,24 @@ int main(int argc, char* argv[])
         "--hpx:ini=hpx.commandline.aliasing!=0"
     };
 
-    // Initialize and run HPX
+    // Init MPI
+    int provided = MPI_THREAD_MULTIPLE;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+    if (provided != MPI_THREAD_MULTIPLE)
+    {
+        std::cout << "Provided MPI is not : MPI_THREAD_MULTIPLE " << provided
+                  << std::endl;
+    }
+
+    // Initialize and run HPX.
     hpx::init_params init_args;
-    init_args.cfg = cfg;  
-    
-    return hpx::init(argc, argv, init_args);
+    init_args.cfg = cfg;
+
+    auto result = hpx::init(argc, argv, init_args);
+
+    // Finalize MPI
+    MPI_Finalize();
+
+    return result;
 }
 
