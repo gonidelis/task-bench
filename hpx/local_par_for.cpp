@@ -207,7 +207,11 @@ void OpenMPApp::execute_main_loop()
   
   Timer::time_start();
   
-  hpx::execution::experimental::fork_join_executor exec;
+  hpx::execution::experimental::fork_join_executor exec(
+    hpx::threads::thread_priority::normal,
+    hpx::threads::thread_stacksize::small_,
+    hpx::execution::experimental::fork_join_executor::loop_schedule::static_,
+    std::chrono::microseconds(100));
 
   hpx::for_loop(hpx::execution::seq,
     int(0), graphs.size(), [&](int i) {
