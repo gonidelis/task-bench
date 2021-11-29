@@ -27,28 +27,6 @@ constexpr char const* channel_communicator_name = "hpx_comm_task";
 char const* const barrier_name = "hpx_barrier_task";
 
 ///////////////////////////////////////////////////////////////////////////////
-
-namespace detail{
-  std::tuple<long, long, long> tile(std::uint32_t loc_idx, long column, std::uint32_t numlocs)
-  {
-    long first_point;
-    long n_points = column / numlocs;
-    long rest = column % numlocs;
-    if (loc_idx < rest){
-      n_points ++;
-    }
-
-    if (rest != 0 && loc_idx >= rest){
-      first_point = (n_points + 1) * rest + n_points * (loc_idx - rest);
-    } else {
-      first_point = n_points * loc_idx;
-    }
-    long last_point = first_point + n_points - 1;
-    return std::make_tuple(first_point, last_point, n_points);
-  }
-} // namespace detail
-
-///////////////////////////////////////////////////////////////////////////////
 int hpx_main(int argc, char *argv[]) 
 {    
   // get number of localities and this locality
@@ -76,8 +54,9 @@ int hpx_main(int argc, char *argv[])
   hpx::lcos::barrier HPX_barrier(barrier_name);
 
   for (auto graph : app.graphs) {
-    long first_point, last_point, n_points;
-    std::tie(first_point, last_point, n_points) = detail::tile(this_locality,graph.max_width, num_localities);
+    long first_point = this_locality * graph.max_width / num_localities;
+    long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
+    long n_points = last_point - first_point + 1;
 
     size_t scratch_bytes = graph.scratch_bytes_per_task;
     scratch.emplace_back(scratch_bytes * n_points);
@@ -95,15 +74,14 @@ int hpx_main(int argc, char *argv[])
   double elapsed = 0.0;
 
   for (int iter = 0; iter < 2; ++iter) {
-    HPX_barrier.wait();
-    
-    hpx::chrono::high_resolution_timer timer;
-    auto duration_lambda_execute = 0.0;  
+    //HPX_barrier.wait();
+    hpx::chrono::high_resolution_timer timer; 
 
     for (auto graph : app.graphs) {
    
-      long first_point, last_point, n_points;
-      std::tie(first_point, last_point, n_points) = detail::tile(this_locality,graph.max_width, num_localities);
+      long first_point = this_locality * graph.max_width / num_localities;
+      long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
+      long n_points = last_point - first_point + 1;
 
       size_t scratch_bytes = graph.scratch_bytes_per_task;
       char *scratch_ptr = scratch[graph.graph_index].data();
@@ -219,9 +197,9 @@ int hpx_main(int argc, char *argv[])
 
           hpx::wait_all(sets);
           
-          //for (auto& f : sets) {
-          //    f.get();
-          //}
+          for (auto& f : sets) {
+              f.get();
+          }
               
           // Receive 
           point_n_inputs = 0;
@@ -280,7 +258,7 @@ int hpx_main(int argc, char *argv[])
       
 
     } // for graphs loop
-    HPX_barrier.wait();
+    //HPX_barrier.wait();
     elapsed = timer.elapsed(); 
 
   } // for 2-time iter

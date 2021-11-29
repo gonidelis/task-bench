@@ -22,7 +22,7 @@
 #include "mpi.h"
 
 ///////////////////////////////////////////////////////////////////////////////
-//char const* const barrier_name = "hpx_barrier_task";
+
 
 ///////////////////////////////////////////////////////////////////////////////
 int hpx_main(int argc, char *argv[]) 
@@ -40,23 +40,13 @@ int hpx_main(int argc, char *argv[])
   hpx::mpi::experimental::enable_user_polling enable_polling;
   hpx::mpi::experimental::executor mpi_exec(MPI_COMM_WORLD);
 
-  hpx::execution::experimental::fork_join_executor exec_fork_join(
-      hpx::threads::thread_priority::default_,
-      hpx::threads::thread_stacksize::small_,
-      hpx::execution::experimental::fork_join_executor::loop_schedule::static_,
-      std::chrono::microseconds(10));
   hpx::execution::static_chunk_size fixed(1);
-  auto policy_fork_join = hpx::execution::par.on(exec_fork_join).with(fixed); 
-  auto policy_par = hpx::execution::par.with(fixed); 
 
-  //hpx::lcos::barrier HPX_barrier(barrier_name);
+  auto policy = hpx::execution::par.with(fixed); 
 
   std::vector<hpx::future<int>> requests;
 
   for (auto graph : app.graphs) {
-    //long first_point, last_point, n_points;
-    //std::tie(first_point, last_point, n_points) = detail::tile(rank, graph.max_width, n_ranks);
-
     long first_point = rank * graph.max_width / n_ranks;
     long last_point = (rank + 1) * graph.max_width / n_ranks - 1;
     long n_points = last_point - first_point + 1;
@@ -66,7 +56,7 @@ int hpx_main(int argc, char *argv[])
 
     char *scratch_ptr = scratch.back().data();
 
-    hpx::for_loop(policy_par, first_point, last_point + 1,
+    hpx::for_loop(policy, first_point, last_point + 1,
       [&](long point)
       {
         long point_index = point - first_point;
@@ -76,19 +66,10 @@ int hpx_main(int argc, char *argv[])
   
   double elapsed = 0.0;
 
-  for (int iter = 0; iter < 1; ++iter) {
-    //std::cerr << "this iter \n";
-    //HPX_barrier.wait();
-    //std::cerr << "this iter after barrier \n";
-    
+  for (int iter = 0; iter < 2; ++iter) {
     hpx::chrono::high_resolution_timer timer;
-    auto duration_lambda_execute = 0.0;  
 
     for (auto graph : app.graphs) {
-   
-      //long first_point, last_point, n_points;
-      //std::tie(first_point, last_point, n_points) = detail::tile(rank, graph.max_width, n_ranks);
-
       long first_point = rank * graph.max_width / n_ranks;
       long last_point = (rank + 1) * graph.max_width / n_ranks - 1;
       long n_points = last_point - first_point + 1;
@@ -248,7 +229,7 @@ int hpx_main(int argc, char *argv[])
         //HPX_barrier.wait();
         //std::cerr << "timestep: " << timestep << ", after this barrier \n";
         hpx::for_loop(
-            policy_par, std::max(first_point, offset),
+            policy, std::max(first_point, offset),
             std::min(last_point, offset + width - 1) + 1, [&](long point) {
               long point_index = point - first_point;
 
