@@ -229,7 +229,7 @@ int hpx_main(int argc, char *argv[])
         long start = std::max(first_point, offset);
         long end = std::min(last_point + 1, offset + width);
 
-        hpx::for_loop(policy, start, end, [&](long point) {
+        hpx::for_loop(policy, start, end, [&](int point) {
           long point_index = point - first_point;
 
           auto &point_input_ptr = input_ptr[point_index];
