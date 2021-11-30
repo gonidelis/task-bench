@@ -23,7 +23,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
-
+char const* const barrier_name = "hpx_barrier_task";
 ///////////////////////////////////////////////////////////////////////////////
 int hpx_main(int argc, char *argv[]) 
 { 
@@ -45,6 +45,8 @@ int hpx_main(int argc, char *argv[])
   auto policy = hpx::execution::par.with(fixed); 
 
   std::vector<hpx::future<int>> requests;
+
+  hpx::lcos::barrier HPX_barrier(barrier_name);
 
   for (auto graph : app.graphs) {
     long first_point = rank * graph.max_width / n_ranks;
@@ -226,7 +228,7 @@ int hpx_main(int argc, char *argv[])
         //    f.get();
         //}
         
-        //HPX_barrier.wait();
+        HPX_barrier.wait();
         //std::cerr << "timestep: " << timestep << ", after this barrier \n";
         hpx::for_loop(
             policy, std::max(first_point, offset),
