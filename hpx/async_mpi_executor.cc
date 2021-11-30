@@ -75,7 +75,7 @@ int hpx_main(int argc, char *argv[])
   
   double elapsed = 0.0;
 
-  for (int iter = 0; iter < 2; ++iter) {
+  for (int iter = 0; iter < 1; ++iter) {
     std::cerr << "this iter: " << iter << ", this rank: " << rank
               << " \n";
     HPX_barrier.wait();
@@ -245,9 +245,9 @@ int hpx_main(int argc, char *argv[])
         //}
         //std::cerr << "timestep: " << timestep << ", after wait all requests \n ";
         
-        HPX_barrier.wait();
-        std::cerr << "timestep: " << timestep << ", this rank: " << rank
-                  << ", after reaching barrier ~~~~~ \n";
+        //HPX_barrier.wait(); // no need
+        //std::cerr << "timestep: " << timestep << ", this rank: " << rank
+        //          << ", after reaching barrier ~~~~~ \n";
         hpx::for_loop(
             policy, std::max(first_point, offset),
             std::min(last_point, offset + width - 1) + 1, [&](long point) {
@@ -258,8 +258,8 @@ int hpx_main(int argc, char *argv[])
               auto &point_n_inputs = n_inputs[point_index];
               auto &point_output = outputs[point_index];
 
-              std::cerr << "timestep: " << timestep << ", this rank: " << rank
-                  << ", inside for-loop before execute_point -- \n";
+              //std::cerr << "timestep: " << timestep << ", this rank: " << rank
+              //    << ", inside for-loop before execute_point -- \n";
 
               graph.execute_point(timestep, point, point_output.data(),
                                   point_output.size(), point_input_ptr.data(),
