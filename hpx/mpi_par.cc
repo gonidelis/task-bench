@@ -259,16 +259,31 @@ int hpx_main(int argc, char *argv[])
 ///////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])
 {
-    // Initialize and run HPX, this example requires to run hpx_main on all
-    // localities
+    // all ranks run their main function
     std::vector<std::string> const cfg = {
         "hpx.run_hpx_main!=1",
         "--hpx:ini=hpx.commandline.allow_unknown!=1",
         "--hpx:ini=hpx.commandline.aliasing!=0"
     };
+
+    // Init MPI
+    int provided = MPI_THREAD_MULTIPLE;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+    if (provided != MPI_THREAD_MULTIPLE)
+    {
+        std::cout << "Provided MPI is not : MPI_THREAD_MULTIPLE " << provided
+                  << std::endl;
+    }
+
+    // Initialize and run HPX.
     hpx::init_params init_args;
-    init_args.cfg = cfg;  
-    
-    return hpx::init(argc, argv, init_args);
+    init_args.cfg = cfg;
+
+    auto result = hpx::init(argc, argv, init_args);
+
+    // Finalize MPI
+    MPI_Finalize();
+
+    return result;
 }
 
