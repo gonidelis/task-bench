@@ -61,15 +61,7 @@ int hpx_main(int argc, char *argv[])
 
     size_t scratch_bytes = graph.scratch_bytes_per_task;
     scratch.emplace_back(scratch_bytes * n_points);
-
-    char *scratch_ptr = scratch.back().data();
-
-    hpx::for_loop(policy, first_point, last_point + 1,
-      [&](long point)
-      {
-        long point_index = point - first_point;
-        TaskGraph::prepare_scratch(scratch_ptr + scratch_bytes * point_index, scratch_bytes);
-      }); //
+    TaskGraph::prepare_scratch(scratch.back().data(), scratch.back().size());
   }
   
   double elapsed = 0.0;
@@ -227,9 +219,11 @@ int hpx_main(int argc, char *argv[])
 
         MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
 
+        long start = std::max(first_point, offset);
+        long end = std::min(last_point + 1, offset + width);
+
         hpx::for_loop(
-            policy, std::max(first_point, offset),
-            std::min(last_point, offset + width - 1) + 1, [&](long point) {
+            policy, start, end, [&](long point) {
               long point_index = point - first_point;
 
               auto &point_input_ptr = input_ptr[point_index];
