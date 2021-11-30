@@ -220,7 +220,9 @@ int hpx_main(int argc, char *argv[])
           //std::cout << "Done rec \n";
         
         } // for loop for exchange
-        //std::cerr << "timestep: " << timestep << ", Done change data \n";
+        std::cout << "timestep: " << timestep << ", this rank: " << rank
+                  << ", after collecting requests for exchanging data and requests size: "
+                  << requests.size() << "\n";
         hpx::wait_all(requests);
         //std::cerr << "timestep: " << timestep << ", requests size: " << requests.size() << "\n";
         //for (auto& f : requests) {
@@ -229,7 +231,8 @@ int hpx_main(int argc, char *argv[])
         //}
         
         HPX_barrier.wait();
-        //std::cerr << "timestep: " << timestep << ", after this barrier \n";
+        std::cout << "timestep: " << timestep << ", this rank: " << rank
+                  << ", after reaching barrier ~~~~~ \n";
         hpx::for_loop(
             policy, std::max(first_point, offset),
             std::min(last_point, offset + width - 1) + 1, [&](long point) {
@@ -248,7 +251,8 @@ int hpx_main(int argc, char *argv[])
 
 
             });  // hpx_for loop
-        //std::cerr << "timestep: " << timestep << ", Done execute for_loop \n";
+        std::cout << "timestep: " << timestep << ", this rank: " << rank
+                  << ", Done execute points ==== \n";
           
       } // for time steps loop 
       
