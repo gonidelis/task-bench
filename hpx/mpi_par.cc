@@ -239,8 +239,8 @@ int main(int argc, char* argv[])
     std::vector<std::string> const cfg = {
         "hpx.run_hpx_main!=1",
         "--hpx:ini=hpx.commandline.allow_unknown!=1",
-        "--hpx:ini=hpx.commandline.aliasing!=0",
-        "--hpx:ini=hpx.stacks.small_size!=0x20000"
+        "--hpx:ini=hpx.commandline.aliasing!=0"
+        //"--hpx:ini=hpx.stacks.small_size!=0x20000"
     };
 
     // Init MPI
