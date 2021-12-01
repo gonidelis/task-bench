@@ -88,6 +88,7 @@ int hpx_main(int argc, char *argv[])
         for (long p = r_first_point; p <= r_last_point; ++p) {
           rank_by_point[p] = r;
           tag_bits_by_point[p] = p - r_first_point;
+          assert((tag_bits_by_point[p] & ~0x7F) == 0);
         }
       }
 
