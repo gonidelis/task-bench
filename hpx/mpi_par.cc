@@ -51,7 +51,7 @@ int hpx_main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
 
     hpx::chrono::high_resolution_timer timer;
-    
+
     std::vector<MPI_Request> requests;
 
     for (auto graph : app.graphs) {
@@ -238,7 +238,8 @@ int main(int argc, char* argv[])
     std::vector<std::string> const cfg = {
         "hpx.run_hpx_main!=1",
         "--hpx:ini=hpx.commandline.allow_unknown!=1",
-        "--hpx:ini=hpx.commandline.aliasing!=0"
+        "--hpx:ini=hpx.commandline.aliasing!=0",
+        "--hpx:ini=hpx.stacks.small_size!=0x20000"
     };
 
     // Init MPI
