@@ -68,7 +68,9 @@ int hpx_main(int argc, char *argv[])
 
   for (int iter = 0; iter < 2; ++iter) {
     MPI_Barrier(MPI_COMM_WORLD);
+
     hpx::chrono::high_resolution_timer timer;
+    
     std::vector<MPI_Request> requests;
 
     for (auto graph : app.graphs) {
@@ -148,7 +150,6 @@ int hpx_main(int argc, char *argv[])
     
       
       for (long timestep = 0; timestep < graph.timesteps; ++timestep) {
-        //std::cout << "timestep: " << timestep << "\n";
         long offset = graph.offset_at_timestep(timestep);
         long width = graph.width_at_timestep(timestep);
 
@@ -260,7 +261,7 @@ int main(int argc, char* argv[])
     std::vector<std::string> const cfg = {
         "hpx.run_hpx_main!=1",
         "--hpx:ini=hpx.commandline.allow_unknown!=1",
-        "--hpx:ini=hpx.commandline.aliasing!=0"
+        "--hpx:ini=hpx.commandline.aliasing!=0",
         //"--hpx:ini=hpx.stacks.small_size!=0x20000"
     };
 

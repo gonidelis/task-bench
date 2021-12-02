@@ -75,7 +75,7 @@ int hpx_main(int argc, char *argv[])
   
   double elapsed = 0.0;
 
-  for (int iter = 0; iter < 1; ++iter) {
+  for (int iter = 0; iter < 2; ++iter) {
     std::cerr << "this iter: " << iter << ", this rank: " << rank
               << " \n";
     HPX_barrier.wait();
@@ -300,7 +300,7 @@ int main(int argc, char* argv[])
         "hpx.run_hpx_main!=1",
         "--hpx:ini=hpx.commandline.allow_unknown!=1",
         "--hpx:ini=hpx.commandline.aliasing!=0",
-        "--hpx:ini=hpx.stacks.small_size!=0x20000"
+        //"--hpx:ini=hpx.stacks.small_size!=0x20000"
     };
 
     // Init MPI
@@ -323,4 +323,3 @@ int main(int argc, char* argv[])
 
     return result;
 }
-

@@ -35,6 +35,9 @@ int hpx_main(int argc, char *argv[])
   App app(argc, argv);
   if (rank == 0) app.display();
 
+  hpx::execution::static_chunk_size fixed(1);
+  auto policy = hpx::execution::par.with(fixed); 
+
   std::vector<std::vector<char> > scratch;
   for (auto graph : app.graphs) {
     long first_point = rank * graph.max_width / n_ranks;
@@ -51,7 +54,7 @@ int hpx_main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
 
     hpx::chrono::high_resolution_timer timer;
-
+    
     std::vector<MPI_Request> requests;
 
     for (auto graph : app.graphs) {
@@ -202,7 +205,10 @@ int hpx_main(int argc, char *argv[])
 
         MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
 
-        for (long point = std::max(first_point, offset); point <= std::min(last_point, offset + width - 1); ++point) {
+        long start = std::max(first_point, offset);
+        long end = std::min(last_point + 1, offset + width);
+
+        hpx::for_loop(policy, start, end, [&](int point) {
           long point_index = point - first_point;
 
           auto &point_input_ptr = input_ptr[point_index];
@@ -210,11 +216,11 @@ int hpx_main(int argc, char *argv[])
           auto &point_n_inputs = n_inputs[point_index];
           auto &point_output = outputs[point_index];
 
-          graph.execute_point(timestep, point,
-                              point_output.data(), point_output.size(),
-                              point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
-                              scratch_ptr + scratch_bytes * point_index, scratch_bytes);
-        }
+          graph.execute_point(
+              timestep, point, point_output.data(), point_output.size(),
+              point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
+              scratch_ptr + scratch_bytes * point_index, scratch_bytes);
+        });  // hpx_for loop
 
       } // for time steps loop 
     } // for graphs loop
@@ -239,7 +245,7 @@ int main(int argc, char* argv[])
     std::vector<std::string> const cfg = {
         "hpx.run_hpx_main!=1",
         "--hpx:ini=hpx.commandline.allow_unknown!=1",
-        "--hpx:ini=hpx.commandline.aliasing!=0"
+        "--hpx:ini=hpx.commandline.aliasing!=0",
         //"--hpx:ini=hpx.stacks.small_size!=0x20000"
     };
 

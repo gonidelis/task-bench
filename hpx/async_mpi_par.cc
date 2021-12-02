@@ -81,6 +81,7 @@ int hpx_main(int argc, char *argv[])
         for (long p = r_first_point; p <= r_last_point; ++p) {
           locality_by_point[p] = r;
           tag_bits_by_point[p] = p - r_first_point;
+          assert((tag_bits_by_point[p] & ~0x7F) == 0);
         }
       }
 
@@ -172,7 +173,7 @@ int hpx_main(int argc, char *argv[])
                 }
                 int from = tag_bits_by_point[point];
                 int to = tag_bits_by_point[dep];
-                int tag = (from << 1) | to;
+                int tag = (from << 8) | to;
 
                 requests.push_back(hpx::async(mpi_exec, MPI_Isend, 
                     point_output.data(), point_output.size(), MPI_BYTE, 
@@ -198,7 +199,7 @@ int hpx_main(int argc, char *argv[])
                 } else {
                   int from = tag_bits_by_point[dep];
                   int to = tag_bits_by_point[point];
-                  int tag = (from << 1) | to;
+                  int tag = (from << 8) | to;
 
                   requests.push_back(hpx::async(
                       mpi_exec, MPI_Irecv, point_inputs[point_n_inputs].data(),
@@ -271,7 +272,7 @@ int main(int argc, char* argv[])
         "hpx.run_hpx_main!=1",
         "--hpx:ini=hpx.commandline.allow_unknown!=1",
         "--hpx:ini=hpx.commandline.aliasing!=0",
-        "--hpx:ini=hpx.stacks.small_size!=0x20000"
+        //"--hpx:ini=hpx.stacks.small_size!=0x20000"
     };
 
     // Init MPI
