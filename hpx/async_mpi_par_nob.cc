@@ -62,7 +62,7 @@ int hpx_main(int argc, char *argv[])
 
   for (int iter = 0; iter < 2; ++iter) {
     //MPI_Barrier(MPI_COMM_WORLD);
-    HPX_barrier.wait();
+    //HPX_barrier.wait();
     hpx::chrono::high_resolution_timer timer;
 
     for (auto graph : app.graphs) {
