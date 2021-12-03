@@ -67,7 +67,8 @@ int hpx_main(int argc, char *argv[])
 
   for (int iter = 0; iter < 2; ++iter) {
     //HPX_barrier.wait();
-    hpx::chrono::high_resolution_timer timer; 
+    
+    hpx::chrono::high_resolution_timer timer;
 
     for (auto graph : app.graphs) {
    
@@ -243,7 +244,7 @@ int hpx_main(int argc, char *argv[])
               point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
               scratch_ptr + scratch_bytes * point_index, scratch_bytes);
         });  // hpx_for loop
-          
+
       } // for time steps loop 
       
 
