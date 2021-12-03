@@ -39,6 +39,9 @@ target_link_libraries(mpi_executor PUBLIC HPX::hpx HPX::wrap_main core_s)
 add_executable(mpi_par mpi_par.cc)
 target_link_libraries(mpi_par PUBLIC HPX::hpx HPX::wrap_main core_s)
 
-add_executable(mpi_plain mpi_plain.cc)
-target_link_libraries(mpi_plain PUBLIC HPX::hpx HPX::wrap_main core_s)
+add_executable(hpx_init_mpi hpx_init_mpi.cc)
+target_link_libraries(hpx_init_mpi PUBLIC HPX::hpx HPX::wrap_main core_s)
+
+add_executable(hpx_plain_mpi hpx_plain_mpi.cc)
+target_link_libraries(hpx_plain_mpi PUBLIC HPX::hpx HPX::wrap_main core_s)
 

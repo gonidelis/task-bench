@@ -14,48 +14,34 @@
 #include <string> 
 #include <tuple>
 
-#if !defined(HPX_COMPUTE_DEVICE_CODE)
-#include "hpx/hpx.hpp"
 #include "hpx/hpx_init.hpp"
-#include "hpx/include/compute.hpp"
+#include "hpx/hpx.hpp"
 #include "hpx/local/chrono.hpp"
-#include "hpx/modules/collectives.hpp"
+#include "hpx/modules/async_mpi.hpp"
+
+#include "mpi.h"
 
 ///////////////////////////////////////////////////////////////////////////////
-constexpr char const* channel_communicator_name = "hpx_comm_task";
 
-char const* const barrier_name = "hpx_barrier_task";
 
 ///////////////////////////////////////////////////////////////////////////////
 int hpx_main(int argc, char *argv[]) 
-{    
-  // get number of localities and this locality
-  std::uint32_t num_localities = hpx::get_num_localities(hpx::launch::sync);
-  std::uint32_t this_locality = hpx::get_locality_id();
+{ 
+  
+  int n_ranks, rank;
+  MPI_Comm_size(MPI_COMM_WORLD, &n_ranks);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   App app(argc, argv);
-  if (this_locality == 0) app.display();
-
-  std::vector<std::vector<char> > scratch;
-
-  // allocate channel communicator
-  auto comm = hpx::collectives::create_channel_communicator(hpx::launch::sync,
-      channel_communicator_name, hpx::collectives::num_sites_arg(num_localities),
-      hpx::collectives::this_site_arg(this_locality));
-      
-  using data_type = std::vector<char>;
-
-  std::vector<hpx::future<void>> sets;
+  if (rank == 0) app.display();
 
   hpx::execution::static_chunk_size fixed(1);
-  
   auto policy = hpx::execution::par.with(fixed); 
 
-  hpx::lcos::barrier HPX_barrier(barrier_name);
-
+  std::vector<std::vector<char> > scratch;
   for (auto graph : app.graphs) {
-    long first_point = this_locality * graph.max_width / num_localities;
-    long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
+    long first_point = rank * graph.max_width / n_ranks;
+    long last_point = (rank + 1) * graph.max_width / n_ranks - 1;
     long n_points = last_point - first_point + 1;
 
     size_t scratch_bytes = graph.scratch_bytes_per_task;
@@ -64,29 +50,31 @@ int hpx_main(int argc, char *argv[])
   }
   
   double elapsed = 0.0;
-
   for (int iter = 0; iter < 2; ++iter) {
-    //HPX_barrier.wait();
-    hpx::chrono::high_resolution_timer timer; 
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    hpx::chrono::high_resolution_timer timer;
+    
+    std::vector<MPI_Request> requests;
 
     for (auto graph : app.graphs) {
-   
-      long first_point = this_locality * graph.max_width / num_localities;
-      long last_point = (this_locality + 1) * graph.max_width / num_localities - 1;
+      long first_point = rank * graph.max_width / n_ranks;
+      long last_point = (rank + 1) * graph.max_width / n_ranks - 1;
       long n_points = last_point - first_point + 1;
 
       size_t scratch_bytes = graph.scratch_bytes_per_task;
       char *scratch_ptr = scratch[graph.graph_index].data();
 
-      std::vector<int> locality_by_point(graph.max_width);
+      std::vector<int> rank_by_point(graph.max_width);
       std::vector<int> tag_bits_by_point(graph.max_width);
 
-      for (int r = 0; r < num_localities; ++r) {
-        long r_first_point = r * graph.max_width / num_localities;
-        long r_last_point = (r + 1) * graph.max_width / num_localities - 1;
+      for (int r = 0; r < n_ranks; ++r) {
+        long r_first_point = r * graph.max_width / n_ranks;
+        long r_last_point = (r + 1) * graph.max_width / n_ranks - 1;
         for (long p = r_first_point; p <= r_last_point; ++p) {
-          locality_by_point[p] = r;
+          rank_by_point[p] = r;
           tag_bits_by_point[p] = p - r_first_point;
+          assert((tag_bits_by_point[p] & ~0x7F) == 0);
         }
       }
 
@@ -146,7 +134,6 @@ int hpx_main(int argc, char *argv[])
     
       
       for (long timestep = 0; timestep < graph.timesteps; ++timestep) {
-
         long offset = graph.offset_at_timestep(timestep);
         long width = graph.width_at_timestep(timestep);
 
@@ -157,10 +144,9 @@ int hpx_main(int argc, char *argv[])
         auto &deps = dependencies[dset];
         auto &rev_deps = reverse_dependencies[dset];
 
-        sets.clear();
-        
+        requests.clear();
+
         for (long point = first_point; point <= last_point; ++point) {
-          sets.clear();
           long point_index = point - first_point;
 
           auto &point_inputs = inputs[point_index];
@@ -170,29 +156,6 @@ int hpx_main(int argc, char *argv[])
           auto &point_deps = deps[point_index];
           auto &point_rev_deps = rev_deps[point_index];
 
-          // Send 
-          if (point >= last_offset && point < last_offset + last_width) {
-            for (auto interval : point_rev_deps) {
-              for (long dep = interval.first; dep <= interval.second; dep++) {
-                if (dep < offset || dep >= offset + width || (first_point <= dep && dep <= last_point)) {
-                  continue;
-                }
-                int from = tag_bits_by_point[point];
-                int to = tag_bits_by_point[dep];
-                int tag = (from << 1) | to;
-                sets.push_back(hpx::collectives::set(comm, 
-                    hpx::collectives::that_site_arg(locality_by_point[dep]), point_output, 
-                    hpx::collectives::tag_arg(tag)));
-              }
-            }
-          }  // send
-
-          hpx::wait_all(sets);
-          
-          for (auto& f : sets) {
-              f.get();
-          }
-              
           // Receive 
           point_n_inputs = 0;
           if (point >= offset && point < offset + width) {
@@ -208,29 +171,41 @@ int hpx_main(int argc, char *argv[])
                 } else {
                   int from = tag_bits_by_point[dep];
                   int to = tag_bits_by_point[point];
-                  int tag = (from << 1) | to;
-
-                  auto got_msg = hpx::collectives::get<data_type>(comm, 
-                          hpx::collectives::that_site_arg(locality_by_point[dep]), 
-                          hpx::collectives::tag_arg(tag));
-                  data_type rec_msg = got_msg.get();
-                  point_inputs[point_n_inputs].assign(rec_msg.begin(), rec_msg.end());
-
+                  int tag = (from << 8) | to;
+                  MPI_Request req;
+                  MPI_Irecv(point_inputs[point_n_inputs].data(),
+                            point_inputs[point_n_inputs].size(), MPI_BYTE,
+                            rank_by_point[dep], tag, MPI_COMM_WORLD, &req);
+                  requests.push_back(req);
                 }
                 point_n_inputs++;
               }
             }
           } // receive
 
-          
+          // Send 
+          if (point >= last_offset && point < last_offset + last_width) {
+            for (auto interval : point_rev_deps) {
+              for (long dep = interval.first; dep <= interval.second; dep++) {
+                if (dep < offset || dep >= offset + width || (first_point <= dep && dep <= last_point)) {
+                  continue;
+                }
+                int from = tag_bits_by_point[point];
+                int to = tag_bits_by_point[dep];
+                int tag = (from << 8) | to;
+                MPI_Request req;
+                MPI_Isend(point_output.data(), point_output.size(), MPI_BYTE,
+                          rank_by_point[dep], tag, MPI_COMM_WORLD, &req);
+                requests.push_back(req);
+                
+              }
+            }
+          }  // send
         } // for loop for exchange
 
-        HPX_barrier.wait();
+        MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
 
-        long start = std::max(first_point, offset);
-        long end = std::min(last_point + 1, offset + width);
-
-        hpx::for_loop(policy, start, end, [&](int point) {
+        for (long point = std::max(first_point, offset); point <= std::min(last_point, offset + width - 1); ++point) {
           long point_index = point - first_point;
 
           auto &point_input_ptr = input_ptr[point_index];
@@ -238,24 +213,23 @@ int hpx_main(int argc, char *argv[])
           auto &point_n_inputs = n_inputs[point_index];
           auto &point_output = outputs[point_index];
 
-          graph.execute_point(
-              timestep, point, point_output.data(), point_output.size(),
-              point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
-              scratch_ptr + scratch_bytes * point_index, scratch_bytes);
-        });  // hpx_for loop
-          
-      } // for time steps loop 
-      
+          graph.execute_point(timestep, point,
+                              point_output.data(), point_output.size(),
+                              point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
+                              scratch_ptr + scratch_bytes * point_index, scratch_bytes);
+        }
 
+      } // for time steps loop 
     } // for graphs loop
-    //HPX_barrier.wait();
+
+    MPI_Barrier(MPI_COMM_WORLD);
     elapsed = timer.elapsed(); 
 
   } // for 2-time iter
 
   
 
-  if (this_locality == 0) {
+  if (rank == 0) {
     app.report_timing(elapsed);
   }
 
@@ -264,16 +238,32 @@ int hpx_main(int argc, char *argv[])
 ///////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])
 {
-    // Initialize and run HPX, this example requires to run hpx_main on all
-    // localities
+    // all ranks run their main function
     std::vector<std::string> const cfg = {
         "hpx.run_hpx_main!=1",
         "--hpx:ini=hpx.commandline.allow_unknown!=1",
         "--hpx:ini=hpx.commandline.aliasing!=0"
+        //"--hpx:ini=hpx.stacks.small_size!=0x20000"
     };
+
+    // Init MPI
+    int provided = MPI_THREAD_MULTIPLE;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+    if (provided != MPI_THREAD_MULTIPLE)
+    {
+        std::cout << "Provided MPI is not : MPI_THREAD_MULTIPLE " << provided
+                  << std::endl;
+    }
+
+    // Initialize and run HPX.
     hpx::init_params init_args;
-    init_args.cfg = cfg;  
-    
-    return hpx::init(argc, argv, init_args);
+    init_args.cfg = cfg;
+
+    auto result = hpx::init(argc, argv, init_args);
+
+    // Finalize MPI
+    MPI_Finalize();
+
+    return result;
 }
-#endif
+
