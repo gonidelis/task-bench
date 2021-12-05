@@ -33,6 +33,9 @@ target_link_libraries(channel_executor PUBLIC HPX::hpx HPX::wrap_main core_s)
 add_executable(channel_par channel_par.cc)
 target_link_libraries(channel_par PUBLIC HPX::hpx HPX::wrap_main core_s)
 
+add_executable(channel_par_seq channel_par_seq.cc)
+target_link_libraries(channel_par_seq PUBLIC HPX::hpx HPX::wrap_main core_s)
+
 add_executable(mpi_executor mpi_executor.cc)
 target_link_libraries(mpi_executor PUBLIC HPX::hpx HPX::wrap_main core_s)
 
