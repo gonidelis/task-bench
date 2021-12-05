@@ -51,3 +51,6 @@ target_link_libraries(hpx_plain_mpi PUBLIC HPX::hpx HPX::wrap_main core_s)
 add_executable(hpx_local hpx_local.cc)
 target_link_libraries(hpx_local PUBLIC HPX::hpx HPX::wrap_main core_s)
 
+add_executable(hpx_local_par hpx_local_par.cc)
+target_link_libraries(hpx_local_par PUBLIC HPX::hpx HPX::wrap_main core_s)
+
