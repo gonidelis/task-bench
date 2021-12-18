@@ -70,14 +70,14 @@ int hpx_main(int argc, char *argv[])
         long point_index = point - first_point;
         TaskGraph::prepare_scratch(scratch_ptr + scratch_bytes * point_index, scratch_bytes);
       }); //
-    std::cerr << ", this rank: " << rank << "Done for prepare_scratch \n";
+    //std::cerr << ", this rank: " << rank << "Done for prepare_scratch \n";
   }
   
   double elapsed = 0.0;
 
   for (int iter = 0; iter < 2; ++iter) {
-    std::cerr << "this iter: " << iter << ", this rank: " << rank
-              << " \n";
+    //std::cerr << "this iter: " << iter << ", this rank: " << rank
+    //          << " \n";
     HPX_barrier.wait();
     //std::cerr << "this iter after barrier \n";
     
@@ -234,9 +234,9 @@ int hpx_main(int argc, char *argv[])
           //std::cout << "Done rec \n";
         
         } // for loop for exchange
-        std::cerr << "timestep: " << timestep << ", this rank: " << rank
-                  << ", after collecting requests for exchanging data and requests size: "
-                  << requests.size() << "\n";
+        //std::cerr << "timestep: " << timestep << ", this rank: " << rank
+        //          << ", after collecting requests for exchanging data and requests size: "
+        //          << requests.size() << "\n";
         hpx::wait_all(requests);
         //std::cerr << "timestep: " << timestep << ", requests size: " << requests.size() << "\n";
         //for (auto& f : requests) {
@@ -266,14 +266,14 @@ int hpx_main(int argc, char *argv[])
                                   point_input_bytes.data(), point_n_inputs,
                                   scratch_ptr + scratch_bytes * point_index,
                                   scratch_bytes);
-              std::cerr << "timestep: " << timestep << ", this rank: " << rank
-                  << ", inside for-loop after execute_point ++ \n";
+              //std::cerr << "timestep: " << timestep << ", this rank: " << rank
+              //    << ", inside for-loop after execute_point ++ \n";
 
 
             });  // hpx_for loop
         
-        std::cerr << "timestep: " << timestep << ", this rank: " << rank
-                  << ", Done execute points ==== \n";
+        //std::cerr << "timestep: " << timestep << ", this rank: " << rank
+        //          << ", Done execute points ==== \n";
           
       } // for time steps loop 
       
