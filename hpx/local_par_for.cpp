@@ -105,9 +105,9 @@ static inline void task(tile_t *tile_out, std::vector<tile_t *> const &tile_ins,
 
 
 
-struct OpenMPApp : public App {
-  OpenMPApp(int argc, char **argv);
-  ~OpenMPApp();
+struct HPXApp : public App {
+  HPXApp(int argc, char **argv);
+  ~HPXApp();
   void execute_main_loop();
   void execute_timestep(size_t idx, long t, hpx::execution::experimental::fork_join_executor &ex);
 private:
@@ -120,7 +120,7 @@ private:
 
 matrix_t *matrix = NULL;
 
-OpenMPApp::OpenMPApp(int argc, char **argv)
+HPXApp::HPXApp(int argc, char **argv)
   : App(argc, argv)
 { 
   nb_workers = 1;
@@ -177,7 +177,7 @@ OpenMPApp::OpenMPApp(int argc, char **argv)
 
 }
 
-OpenMPApp::~OpenMPApp()
+HPXApp::~HPXApp()
 {
   for (unsigned i = 0; i < graphs.size(); i++) {
     for (int j = 0; j < matrix[i].M * matrix[i].N; j++) {
@@ -201,7 +201,7 @@ OpenMPApp::~OpenMPApp()
   extra_local_memory = NULL;
 }
 
-void OpenMPApp::execute_main_loop()
+void HPXApp::execute_main_loop()
 { 
   display();
   
@@ -229,7 +229,7 @@ void OpenMPApp::execute_main_loop()
 
 
 // int flag = 1;
-void OpenMPApp::execute_timestep(size_t idx, long t, hpx::execution::experimental::fork_join_executor &exec)
+void HPXApp::execute_timestep(size_t idx, long t, hpx::execution::experimental::fork_join_executor &exec)
 {
   tile_t *mat = matrix[idx].data;
 
@@ -338,7 +338,7 @@ void OpenMPApp::execute_timestep(size_t idx, long t, hpx::execution::experimenta
   // }
 }
 
-void OpenMPApp::debug_printf(int verbose_level, const char *format, ...)
+void HPXApp::debug_printf(int verbose_level, const char *format, ...)
 {
   if (verbose_level > VERBOSE_LEVEL) {
     return;
@@ -351,7 +351,7 @@ void OpenMPApp::debug_printf(int verbose_level, const char *format, ...)
 
 int main(int argc, char ** argv)
 {
-  OpenMPApp app(argc, argv);
+  HPXApp app(argc, argv);
   app.execute_main_loop();
 
   return 0;
