@@ -2,7 +2,11 @@ DEBUG ?= 0
 
 RELWITHDEBINFO ?= 0
 
-CXX ?= g++
+ifeq ($(strip $(COMP)),1)
+CXX = clang++
+else 
+CXX = g++
+endif
 
 CXXFLAGS = -std=c++11 -Wall -fopenmp
 LDFLAGS  = -std=c++11 -Wall -fopenmp
@@ -33,7 +37,7 @@ CXXFLAGS += $(INC)
 
 include ../core/make_blas.mk
 
-TARGET = main main_buffer main_buffer2
+TARGET = main main_onetask main_buffer main_buffer2
 all: $(TARGET)
 
 .PRECIOUS: %.cc %.o
@@ -43,7 +47,13 @@ main.o: main.cc ../core/timer.h
 
 main: main.o
 	$(CXX) $^ $(LIB) $(LDFLAGS) -o $@ 
-		
+
+main_onetask.o: main_onetask.cc ../core/timer.h
+	$(CXX) -c $(CXXFLAGS) $<
+
+main_onetask: main_onetask.o
+	$(CXX) $^ $(LIB) $(LDFLAGS) -o $@ 
+
 main_buffer.o: main_buffer.cc ../core/timer.h
 	$(CXX) -c $(CXXFLAGS) $<
 
