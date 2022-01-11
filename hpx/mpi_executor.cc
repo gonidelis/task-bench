@@ -43,12 +43,11 @@ int hpx_main(int argc, char *argv[])
 
 
   using executor = hpx::execution::experimental::fork_join_executor;
-  executor exec(hpx::threads::thread_priority::default_, hpx::threads::thread_stacksize::small_,
-                executor::loop_schedule::static_, std::chrono::microseconds(10));
+  executor exec(hpx::threads::thread_priority::normal, hpx::threads::thread_stacksize::small_,
+                executor::loop_schedule::static_, std::chrono::microseconds(100));
 
-  hpx::execution::static_chunk_size fixed(1);
-  
-  auto policy = hpx::execution::par.on(exec).with(fixed); 
+  std::size_t fixed_work = (1 * hpx::get_num_worker_threads());
+   
 
   //std::vector<hpx::future<int>> requests;
 
@@ -64,12 +63,13 @@ int hpx_main(int argc, char *argv[])
     TaskGraph::prepare_scratch(scratch.back().data(), scratch.back().size());
   }
   
-  double elapsed = 0.0;
+  double elapsed_time = 0.0;
 
   for (int iter = 0; iter < 2; ++iter) {
     MPI_Barrier(MPI_COMM_WORLD);
 
-    hpx::chrono::high_resolution_timer timer;
+    //hpx::chrono::high_resolution_timer timer;
+    double start_time = MPI_Wtime();
     
     std::vector<MPI_Request> requests;
 
@@ -160,6 +160,9 @@ int hpx_main(int argc, char *argv[])
         auto &deps = dependencies[dset];
         auto &rev_deps = reverse_dependencies[dset];
 
+        hpx::execution::static_chunk_size fixed_chunksz(width/fixed_work);
+        auto policy = hpx::execution::par.on(exec).with(fixed_chunksz);
+
         requests.clear();
 
         for (long point = first_point; point <= last_point; ++point) {
@@ -241,15 +244,18 @@ int hpx_main(int argc, char *argv[])
       } // for time steps loop 
     } // for graphs loop
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    elapsed = timer.elapsed(); 
+    //MPI_Barrier(MPI_COMM_WORLD);
+    //elapsed = timer.elapsed(); 
+
+    double stop_time = MPI_Wtime();
+    elapsed_time = stop_time - start_time;
 
   } // for 2-time iter
 
   
 
   if (rank == 0) {
-    app.report_timing(elapsed);
+    app.report_timing(elapsed_time);
   }
 
   return hpx::finalize();
