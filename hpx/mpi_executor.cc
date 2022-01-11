@@ -43,10 +43,13 @@ int hpx_main(int argc, char *argv[])
 
 
   using executor = hpx::execution::experimental::fork_join_executor;
-  executor exec(hpx::threads::thread_priority::normal, hpx::threads::thread_stacksize::small_,
-                executor::loop_schedule::static_, std::chrono::microseconds(100));
+  executor exec(hpx::threads::thread_priority::normal, 
+                hpx::threads::thread_stacksize::small_,
+                executor::loop_schedule::static_, 
+                std::chrono::microseconds(100));
 
-  std::size_t fixed_work = (1 * hpx::get_num_worker_threads());
+  hpx::execution::static_chunk_size fixed(1);
+  auto policy = hpx::execution::par.on(exec).with(fixed); 
    
 
   //std::vector<hpx::future<int>> requests;
@@ -159,9 +162,6 @@ int hpx_main(int argc, char *argv[])
         long dset = graph.dependence_set_at_timestep(timestep);
         auto &deps = dependencies[dset];
         auto &rev_deps = reverse_dependencies[dset];
-
-        hpx::execution::static_chunk_size fixed_chunksz(width/fixed_work);
-        auto policy = hpx::execution::par.on(exec).with(fixed_chunksz);
 
         requests.clear();
 
