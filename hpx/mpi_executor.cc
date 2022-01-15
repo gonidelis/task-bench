@@ -227,19 +227,22 @@ int hpx_main(int argc, char *argv[])
         long start = std::max(first_point, offset);
         long end = std::min(last_point + 1, offset + width);
 
-        hpx::for_loop(policy, start, end, [&](int point) {
-          long point_index = point - first_point;
+        if (start < end) {
+          hpx::for_loop(policy, start, end, [&](int point) {
+            long point_index = point - first_point;
 
-          auto &point_input_ptr = input_ptr[point_index];
-          auto &point_input_bytes = input_bytes[point_index];
-          auto &point_n_inputs = n_inputs[point_index];
-          auto &point_output = outputs[point_index];
+            auto &point_input_ptr = input_ptr[point_index];
+            auto &point_input_bytes = input_bytes[point_index];
+            auto &point_n_inputs = n_inputs[point_index];
+            auto &point_output = outputs[point_index];
 
-          graph.execute_point(
-              timestep, point, point_output.data(), point_output.size(),
-              point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
-              scratch_ptr + scratch_bytes * point_index, scratch_bytes);
-        });  // hpx_for loop
+            graph.execute_point(
+                timestep, point, point_output.data(), point_output.size(),
+                point_input_ptr.data(), point_input_bytes.data(), point_n_inputs,
+                scratch_ptr + scratch_bytes * point_index, scratch_bytes);
+          });  // hpx_for loop
+        }
+        
 
       } // for time steps loop 
     } // for graphs loop
