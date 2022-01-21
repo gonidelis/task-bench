@@ -23,9 +23,6 @@
 #include "mpi.h"
 
 ///////////////////////////////////////////////////////////////////////////////
-
-//char const* const barrier_name = "hpx_barrier_task";
-///////////////////////////////////////////////////////////////////////////////
 int hpx_main(int argc, char *argv[]) 
 { 
   
@@ -38,23 +35,16 @@ int hpx_main(int argc, char *argv[])
 
   std::vector<std::vector<char> > scratch;
 
-  //hpx::mpi::experimental::enable_user_polling enable_polling;
-  //hpx::mpi::experimental::executor mpi_exec(MPI_COMM_WORLD);
-
-
   using executor = hpx::execution::experimental::fork_join_executor;
   executor exec(hpx::threads::thread_priority::normal, 
                 hpx::threads::thread_stacksize::small_,
                 executor::loop_schedule::static_, 
                 std::chrono::microseconds(100));
 
-  hpx::execution::static_chunk_size fixed(1);
-  auto policy = hpx::execution::par.on(exec).with(fixed); 
+  std::size_t work = (1 * hpx::get_num_worker_threads());
+  //hpx::execution::static_chunk_size fixed(app.graphs[0].max_width/work);
+  //auto policy = hpx::execution::par.on(exec).with(fixed); 
    
-
-  //std::vector<hpx::future<int>> requests;
-
-  //hpx::lcos::barrier HPX_barrier(barrier_name);
 
   for (auto graph : app.graphs) {
     long first_point = rank * graph.max_width / n_ranks;
@@ -77,6 +67,9 @@ int hpx_main(int argc, char *argv[])
     std::vector<MPI_Request> requests;
 
     for (auto graph : app.graphs) {
+      hpx::execution::static_chunk_size fixed(graph.max_width/work);
+      auto policy = hpx::execution::par.on(exec).with(fixed);
+
       long first_point = rank * graph.max_width / n_ranks;
       long last_point = (rank + 1) * graph.max_width / n_ranks - 1;
       long n_points = last_point - first_point + 1;
@@ -246,9 +239,6 @@ int hpx_main(int argc, char *argv[])
 
       } // for time steps loop 
     } // for graphs loop
-
-    //MPI_Barrier(MPI_COMM_WORLD);
-    //elapsed = timer.elapsed(); 
 
     double stop_time = MPI_Wtime();
     elapsed_time = stop_time - start_time;
